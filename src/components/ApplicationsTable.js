@@ -2,6 +2,15 @@ import React from 'react';
 import { StatusBadge } from './index.js';
 
 /**
+ * Extract first line of notes or return default message
+ * @param {string} notes - Application notes
+ * @returns {string} First line of notes or default message
+ */
+const getFirstLineOfNotes = (notes) => {
+    return notes?.split('\n')[0] || 'No next steps';
+};
+
+/**
  * ApplicationsTable Component
  * Compact table view for applications with responsive mobile cards
  */
@@ -79,7 +88,7 @@ const ApplicationsTable = ({
                                 </td>
                                 <td className="px-6 py-4">
                                     <p className="text-sm text-gray-500 truncate max-w-xs">
-                                        {app.notes?.split('\n')[0] || 'No next steps'}
+                                        {getFirstLineOfNotes(app.notes)}
                                     </p>
                                 </td>
                                 <td className="px-6 py-4 text-right">
@@ -203,11 +212,9 @@ const ApplicationsTable = ({
                                 </svg>
                                 Applied: {app.appliedDate || 'Not specified'}
                             </div>
-                            {app.notes && (
-                                <div className="text-xs text-gray-600 truncate">
-                                    {app.notes.split('\n')[0]}
-                                </div>
-                            )}
+                            <div className="text-xs text-gray-600 truncate">
+                                {getFirstLineOfNotes(app.notes)}
+                            </div>
                         </div>
 
                         {/* Actions */}
