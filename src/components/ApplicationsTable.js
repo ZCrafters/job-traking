@@ -78,7 +78,7 @@ const ApplicationsTable = ({
                                     <StatusBadge status={app.status} />
                                 </td>
                                 <td className="px-6 py-4">
-                                    <p className="text-sm text-gray-500 line-clamp-2 max-w-xs">
+                                    <p className="text-sm text-gray-500 truncate max-w-xs">
                                         {app.notes?.split('\n')[0] || 'No next steps'}
                                     </p>
                                 </td>
@@ -204,7 +204,7 @@ const ApplicationsTable = ({
                                 Applied: {app.appliedDate || 'Not specified'}
                             </div>
                             {app.notes && (
-                                <div className="text-xs text-gray-600 line-clamp-2">
+                                <div className="text-xs text-gray-600 truncate">
                                     {app.notes.split('\n')[0]}
                                 </div>
                             )}
