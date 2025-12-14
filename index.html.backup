@@ -1,0 +1,1496 @@
+import React, { useState, useEffect } from 'react';
+
+// --- Firebase Imports ---
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { 
+    getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, getDoc, addDoc, setLogLevel, writeBatch, getDocs, Timestamp
+} from 'firebase/firestore';
+
+// --- Global Environment Variables (Accessed outside useEffect for pathing) ---
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// --- API Configuration ---
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`;
+const OCR_SYSTEM_INSTRUCTION = { parts: [{ text: "You are an expert OCR and data extraction tool for job applications. Your task is to extract three pieces of information from the provided image: the Company Name, the Job Role, and the Date (Applied Date or Deadline). Respond only with a JSON array that strictly follows the provided schema. If a value is not found, use 'N/A'. The 'date' must be in YYYY-MM-DD format if possible, otherwise 'N/A'. If the date in the source is DD/MM/YYYY, convert it to YYYY-MM-DD." }] };
+const OCR_RESPONSE_SCHEMA = {
+    type: "ARRAY",
+    items: {
+        type: "OBJECT",
+        properties: { "companyName": { "type": "STRING" }, "jobRole": { "type": "STRING" }, "date": { "type": "STRING" } },
+        propertyOrdering: ["companyName", "jobRole", "date"]
+    }
+};
+
+// --- Configuration ---
+const ITEMS_PER_PAGE = 6;
+// Hardcoded base context (used as default before user uploads files)
+const BASE_SKILLS_CONTEXT = `Zefanya's key skills include: Digital Business, Data Science (Python, Tableau, Green Academy certification), Certified Content Creator, Certified Digital Marketing Practitioner, strong project coordination, and experience in video editing/reels content creation.`;
+
+
+// --- Initial Data (7 Confirmed Applications) ---
+const initialApplications = [
+    // NUS Amgen
+    { role: "Amgen Scholars Asia Program", company: "National University of Singapore (NUS)", location: "Singapore", appliedDate: "2025-12-14", status: "IN_REVIEW", notes: "Deadline: 1 Feb 2026. Important: Referees receive separate email.", link: "https://nus.edu.sg/amgenscholars", timestamp: new Date(2025, 11, 14, 10, 0).getTime() },
+    // FIFGROUP 
+    { role: "Marketing & Brand Communication Internship", company: "FIFGROUP (AIF - FIF)", location: "Jakarta", appliedDate: "2025-12-08", status: "IN_REVIEW", notes: "Status: Dalam Proses. Tahap: Seleksi Administratif.", link: "https://id.jobstreet.com/profiles/zefanya-williams-nVDCMgJGMl", timestamp: new Date(2025, 11, 8, 12, 0).getTime() },
+    { role: "Creative Digital Content & Corporate Branding Internship", company: "FIFGROUP (AIF - FIF)", location: "Jakarta", appliedDate: "2025-12-08", status: "IN_REVIEW", notes: "Status: Dalam Proses. Tahap: Seleksi Administratif.", link: "https://id.jobstreet.com/profiles/zefanya-williams-nVDCMgJGMl", timestamp: new Date(2025, 11, 8, 12, 0).getTime() },
+    { role: "Business Analyst Internship", company: "FIFGROUP (AIF - FIF)", location: "Jakarta", appliedDate: "2025-12-05", status: "IN_REVIEW", notes: "Status: Dalam Proses. Tahap: Seleksi Administratif.", link: "https://id.jobstreet.com/profiles/zefanya-williams-nVDCMgJGMl", timestamp: new Date(2025, 11, 5, 12, 0).getTime() },
+    // Google (ACTION mapped to INTERVIEW, per professional schema)
+    { role: "User Experience Design Summer Intern, 2026", company: "Google", location: "Singapore", appliedDate: "2025-12-14", status: "INTERVIEW", notes: "Submitted. Action: Check dashboard daily for status updates.", link: "https://careers.google.com/", timestamp: new Date(2025, 11, 14, 15, 30).getTime() },
+    { role: "Associate Product Marketing Manager Intern, Summer 2026", company: "Google", location: "Singapore", appliedDate: "2025-12-14", status: "INTERVIEW", notes: "Submitted. Action: Check dashboard daily for status updates.", link: "https://careers.google.com/", timestamp: new Date(2025, 11, 14, 15, 30).getTime() },
+    { role: "Product Analyst, Strategy and Operations", company: "Google", location: "Singapore or Sydney", appliedDate: "2025-12-14", status: "IN_REVIEW", notes: "Submitted. Waiting for HR screening confirmation.", link: "https://careers.google.com/", timestamp: new Date(2025, 11, 14, 15, 30).getTime() },
+];
+
+// --- Status Mapping and Colors (Based on User's request) ---
+const STATUS_MAP = {
+    'TO_APPLY': { label: 'To Apply', class: 'bg-red-100 text-red-600', color: '#ef4444' }, 
+    'SUBMITTED': { label: 'Submitted', class: 'bg-blue-100 text-blue-600', color: '#3b82f6' }, 
+    'IN_REVIEW': { label: 'In Review', class: 'bg-purple-100 text-purple-600', color: '#a855f7' },
+    'INTERVIEW': { label: 'Interview', class: 'bg-orange-100 text-orange-600', color: '#f97316' },
+    'OFFER': { label: 'Offer', class: 'bg-green-100 text-green-600', color: '#10b981' },
+    'REJECTED': { label: 'Rejected', class: 'bg-gray-200 text-gray-600', color: '#6b7280' },
+    'DONE_PROJECT': { label: 'Done/Project', class: 'bg-indigo-100 text-indigo-600', color: '#6366f1' },
+    'ACTION': { label: 'Next Action', class: 'bg-yellow-100 text-yellow-600', color: '#f59e0b' },
+};
+
+// --- UTILITY FUNCTIONS (OUTSIDE REACT) ---
+
+// Micro-UX: Convert timestamp to readable 'X time ago' format
+const timeAgo = (date) => {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    let interval = Math.floor(seconds / 31536000);
+
+    if (interval >= 1) return interval + (interval === 1 ? " year ago" : " years ago");
+    interval = Math.floor(seconds / 2592000);
+    if (interval >= 1) return interval + (interval === 1 ? " month ago" : " months ago");
+    interval = Math.floor(seconds / 86400);
+    if (interval >= 1) return interval + (interval === 1 ? " day ago" : " days ago");
+    interval = Math.floor(seconds / 3600);
+    if (interval >= 1) return interval + (interval === 1 ? " hour ago" : " hours ago");
+    interval = Math.floor(seconds / 60);
+    if (interval >= 1) return interval + (interval === 1 ? " minute ago" : " minutes ago");
+    return "just now";
+};
+
+// SVG HELPER FUNCTIONS FOR ACCURATE PIE CHART DRAWING
+const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
+    const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+    return {
+        x: centerX + (radius * Math.cos(angleInRadians)),
+        y: centerY + (radius * Math.sin(angleInRadians))
+    };
+};
+
+const describeArc = (x, y, radius, startAngle, endAngle) => {
+    if (endAngle >= 360) endAngle = 359.999;
+    
+    // Calculate start and end points of the arc
+    const start = polarToCartesian(x, y, radius, endAngle);
+    const end = polarToCartesian(x, y, radius, startAngle);
+
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+
+    const d = [
+        "M", start.x, start.y, // Move to start point
+        "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y, // Draw arc
+        "L", x, y, // Line back to center
+        "Z" // Close path
+    ].join(" ");
+    return d;
+};
+
+
+// --- UTILITY COMPONENTS ---
+
+const StatusBadge = ({ status }) => {
+    const { label, class: className } = STATUS_MAP[status] || STATUS_MAP['IN_REVIEW'];
+    return (
+        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${className} shadow-sm`}>
+            {label}
+        </span>
+    );
+};
+
+const SummaryCard = ({ title, count, colorClass, icon, description }) => {
+    return (
+        <div className={`p-5 rounded-xl shadow-lg transition duration-300 hover:shadow-xl ${colorClass}`}>
+            <div className="flex justify-between items-start text-gray-800">
+                <div className="text-3xl font-bold">{count}</div>
+                <div className="p-2 rounded-full bg-white bg-opacity-30">{icon}</div>
+            </div>
+            <p className="mt-3 text-sm font-semibold uppercase opacity-90 text-gray-700">{title}</p>
+            {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+        </div>
+    );
+};
+
+// Component for Visualization (Pie Chart)
+const StatusDistributionChart = ({ applications }) => {
+    const counts = applications.reduce((acc, app) => {
+        const statusKey = app.status; // Use original status key
+        acc[statusKey] = (acc[statusKey] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const data = Object.keys(counts).map(status => ({
+        label: STATUS_MAP[status].label,
+        value: counts[status],
+        color: STATUS_MAP[status].color,
+    })).filter(item => item.value > 0);
+
+    const total = applications.length;
+
+    // Drawing logic (using trigonometric helpers)
+    let startAngle = 0;
+    const slices = data.map(item => {
+        const angle = (item.value / total) * 360;
+        const endAngle = startAngle + angle;
+
+        const pathData = describeArc(100, 100, 100, startAngle, endAngle);
+        startAngle = endAngle; 
+        
+        return (
+            <path 
+                key={item.label}
+                d={pathData}
+                fill={item.color}
+            />
+        );
+    });
+
+    return (
+        <div className="bg-white p-6 rounded-2xl shadow-lg h-full">
+            <h3 className="font-garamond text-xl font-bold text-gray-800 mb-4">Status Distribution</h3>
+            <div className="flex flex-col md:flex-row items-center justify-around space-y-4 md:space-y-0">
+                <svg width="150" height="150" viewBox="0 0 200 200">
+                    {slices}
+                    <circle cx="100" cy="100" r="40" fill="white" />
+                </svg>
+                <div className="space-y-1">
+                    {data.map(item => (
+                        <div key={item.label} className="flex items-center text-sm">
+                            <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }}></span>
+                            {item.label}: {item.value} ({total > 0 ? ((item.value / total) * 100).toFixed(0) : 0}%)
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const ApplicationCard = ({ app, onEdit, onDelete, onGenerateEmail, isEmailLoading, onGenerateStrategy, isStrategyLoading, onCVCheck, isCVCheckLoading }) => {
+    const nextStepSummary = app.notes?.split('\n')[0] || 'No immediate next step.';
+
+    // Determine visibility based on relevance
+    const showStrategy = app.status === 'INTERVIEW' || app.status === 'ACTION';
+    const showCVCheck = app.status === 'TO_APPLY' || app.status === 'IN_REVIEW';
+
+    return (
+        <div className="bg-white p-5 rounded-2xl shadow-md border-t-4 border-indigo-500 transition duration-200 hover:shadow-xl hover:border-t-indigo-600">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                
+                {/* Status & Title (Hierarchy) */}
+                <div className="col-span-12 lg:col-span-5">
+                    <StatusBadge status={app.status} />
+                    <div className="mt-2 text-xl font-extrabold text-gray-800">{app.role}</div>
+                    <div className="text-sm text-gray-500 font-medium">at {app.company}</div>
+                </div>
+
+                {/* Details */}
+                <div className="col-span-12 md:col-span-7 lg:col-span-5 text-sm space-y-1">
+                    <div className="flex items-center text-gray-600">
+                        <svg className="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        {app.location || 'N/A'}
+                    </div>
+                    <div className="flex items-center text-gray-600">
+                        <svg className="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        Applied: {app.appliedDate}
+                    </div>
+                    {/* PALETTE UX IMPROVEMENT: Time Since Update */}
+                    <div className="flex items-center text-gray-600 text-xs font-medium italic">
+                        <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Updated: {timeAgo(app.timestamp)}
+                    </div>
+                    <div className="flex items-center text-gray-800 font-semibold pt-2">
+                        <svg className="w-4 h-4 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                        Next Step: <span className="ml-1 text-indigo-700">{nextStepSummary}</span>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="col-span-12 lg:col-span-2 flex lg:flex-col justify-end lg:items-end space-x-3 lg:space-x-0 lg:space-y-3 pt-2">
+                    {/* CV Quality Check (AI) */}
+                    {showCVCheck && (
+                        <button 
+                            onClick={() => onCVCheck(app)} 
+                            disabled={isCVCheckLoading === app.id}
+                            className="text-gray-500 hover:text-blue-600 transition disabled:opacity-50"
+                            title="CV Quality Check (AI)"
+                        >
+                             <svg aria-label="CV Check" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </button>
+                    )}
+                    {/* Interview Strategy (AI) */}
+                    {showStrategy && (
+                        <button 
+                            onClick={() => onGenerateStrategy(app)} 
+                            disabled={isStrategyLoading === app.id}
+                            className="text-gray-500 hover:text-green-600 transition disabled:opacity-50"
+                            title="Generate Interview Strategy (AI)"
+                        >
+                            <svg aria-label="Interview Strategy" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l-2 2M15 19h2M9 19h6m-6 0a3 3 0 00-3-3H5a2 2 0 01-2-2V8a2 2 0 012-2h4l2-2 2 2h4a2 2 0 012 2v10a2 2 0 01-2 2h-2a3 3 0 00-3 3z"></path></svg>
+                        </button>
+                    )}
+                    {/* Draft Follow-up Email */}
+                    <button 
+                        onClick={() => onGenerateEmail(app)} 
+                            disabled={isEmailLoading === app.id}
+                        className="text-gray-500 hover:text-pink-600 transition disabled:opacity-50"
+                        title="Draft Follow-up Email (AI)"
+                    >
+                         <svg aria-label="Draft Follow-up Email" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.88 5.25a2 2 0 002.24 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    </button>
+                    {app.link && (
+                        <a href={app.link} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-indigo-600 transition" aria-label={`Go to application link for ${app.role}`}>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </a>
+                    )}
+                    <button onClick={() => onEdit(app)} className="text-gray-500 hover:text-green-600 transition" aria-label={`Edit application ${app.role}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </button>
+                    <button onClick={() => onDelete(app.id)} className="text-gray-500 hover:text-red-600 transition" aria-label={`Delete application ${app.role}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ApplicationModal = ({ isOpen, onClose, onSave, initialData, isScanning, scanStatus, handleImageUpload, onGenerateNotes, isGenerating }) => {
+// ... (Modal code remains unchanged)
+    const [formData, setFormData] = useState(initialData);
+
+    useEffect(() => {
+        setFormData(initialData);
+    }, [initialData]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    // Handler to initiate AI note generation
+    const handleGenerateClick = () => {
+        if (formData.role && formData.company) {
+            onGenerateNotes(formData.role, formData.company, setFormData);
+        } else {
+            alert('Please fill in Job Role and Company first.');
+        }
+    };
+
+
+    return (
+        <div className={`fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl m-4 transform transition-transform duration-300 scale-100">
+                
+                {/* Header */}
+                <div className="p-6 border-b flex justify-between items-center">
+                    <h2 className="font-georgia text-2xl font-bold text-gray-800" id="modal-title">{formData.id ? 'Edit Application' : 'Add New Entry'}</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Close modal">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                {/* Scan Area */}
+                <div className="p-6 border-b">
+                    <h3 className="font-garamond text-lg font-semibold mb-3 text-indigo-600">Scan Job Post Screenshot (AI)</h3>
+                    <input type="file" accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={handleImageUpload} disabled={isScanning} aria-label="Upload image for AI scan"/>
+                    {scanStatus && (
+                        <p className={`mt-2 text-sm ${isScanning ? 'text-orange-500' : scanStatus.includes('successfully') ? 'text-green-600' : 'text-red-500'}`}>
+                            {isScanning ? 'Processing...' : scanStatus}
+                        </p>
+                    )}
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <input type="hidden" name="id" value={formData.id || ''} />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="role" className="block text-sm font-medium text-gray-700">Job Role</label>
+                            <input type="text" id="role" name="role" value={formData.role || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-lg p-2.5 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="company" className="block text-sm font-medium text-gray-700">Company</label>
+                            <input type="text" id="company" name="company" value={formData.company || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-lg p-2.5 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location</label>
+                            <input type="text" id="location" name="location" value={formData.location || ''} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-lg p-2.5" />
+                        </div>
+                        <div>
+                            <label htmlFor="appliedDate" className="block text-sm font-medium text-gray-700">Applied/Planned Date</label>
+                            <input type="date" id="appliedDate" name="appliedDate" value={formData.appliedDate || new Date().toISOString().split('T')[0]} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-lg p-2.5" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+                        <select id="status" name="status" value={formData.status || 'IN_REVIEW'} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-lg p-2.5 bg-white">
+                            {Object.keys(STATUS_MAP).map(key => (
+                                <option key={key} value={key}>{STATUS_MAP[key].label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label htmlFor="link" className="block text-sm font-medium text-gray-700">Job Post Link</label>
+                        <input type="url" id="link" name="link" value={formData.link || ''} onChange={handleChange} placeholder="e.g., https://linkedin.com/jobs/..." className="mt-1 block w-full border border-gray-300 rounded-lg p-2.5" />
+                    </div>
+
+                    <div>
+                        <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Next Steps (Notes)</label>
+                        <div className="flex space-x-2 mt-1">
+                            <textarea id="notes" name="notes" value={formData.notes || ''} onChange={handleChange} rows="3" placeholder="1. Prepare portfolio. 2. Follow up email." className="block w-full border border-gray-300 rounded-lg p-2.5"></textarea>
+                            <button 
+                                type="button" 
+                                onClick={handleGenerateClick}
+                                disabled={isGenerating}
+                                className="px-3 py-2 bg-pink-500 text-white rounded-lg shadow-md hover:bg-pink-600 text-sm font-semibold flex items-center justify-center transition duration-150"
+                                title="Generate tailored to-do list based on role and your CV."
+                                aria-label="Generate next steps using AI"
+                            >
+                                {isGenerating ? (
+                                    <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                ) : (
+                                    '✨ AI'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="form-actions flex justify-end pt-2">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-xl mr-3 hover:bg-gray-300">
+                            Batal
+                        </button>
+                        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700">
+                            Simpan Entry
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const EmailDraftModal = ({ isOpen, onClose, draft }) => {
+// ... (Email Modal code remains largely unchanged)
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        // Construct the full text: Subject + two newlines + Body
+        const textToCopy = draft.subject + "\n\n" + draft.body;
+        
+        // Use document.execCommand('copy') for better compatibility in iframe environments
+        const tempElement = document.createElement('textarea');
+        tempElement.value = textToCopy;
+        document.body.appendChild(tempElement);
+        tempElement.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempElement);
+        
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+                <div className="p-6 border-b flex justify-between items-center">
+                    <h2 className="font-georgia text-2xl font-bold text-pink-600 flex items-center" id="email-modal-title">
+                        <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.88 5.25a2 2 0 002.24 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        Follow-up Email Draft (AI)
+                    </h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Close email draft modal">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    <div className="p-4 bg-gray-100 rounded-lg" role="alert">
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Subject:</p>
+                        <p className="font-medium text-gray-800">{draft.subject}</p>
+                    </div>
+
+                    <div className="p-4 bg-white border border-gray-300 rounded-lg whitespace-pre-wrap font-mono text-sm shadow-inner overflow-auto max-h-60" aria-describedby="email-modal-title">
+                        {draft.body}
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+                        <span className="font-bold text-red-500">*Note:</span> Pastikan Anda mengganti `[Recruiter/Hiring Team]` dengan nama kontak yang benar sebelum mengirim.
+                    </div>
+                </div>
+                
+                <div className="p-6 border-t flex justify-end">
+                    <button 
+                        onClick={handleCopy} 
+                        className="px-5 py-2.5 bg-green-500 text-white font-semibold rounded-xl shadow-md hover:bg-green-600 transition flex items-center"
+                    >
+                        {copied ? (
+                            <>
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                Berhasil Disalin!
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2v-2m-3-11l3 3m-3-3l-3 3m3-3v8M11 19h10a2 2 0 002-2V7a2 2 0 00-2-2h-3"></path></svg>
+                                Copy Draft
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const StrategyModal = ({ isOpen, onClose, strategy }) => {
+    if (!isOpen || !strategy.questions || !strategy.highlights) return null;
+
+    return (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+                <div className="p-6 border-b flex justify-between items-center">
+                    <h2 className="font-georgia text-2xl font-bold text-green-600 flex items-center">
+                        <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l-2 2M15 19h2M9 19h6m-6 0a3 3 0 00-3-3H5a2 2 0 01-2-2V8a2 2 0 012-2h4l2-2 2 2h4a2 2 0 012 2v10a2 2 0 01-2 2h-2a3 3 0 00-3 3z"></path></svg>
+                        Interview Strategy (AI)
+                    </h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Close interview strategy modal">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    <div>
+                        <h3 className="font-garamond text-lg font-bold text-gray-800 border-b pb-2 mb-3">Top 3-4 Potential Interview Questions</h3>
+                        <ol className="list-decimal list-inside space-y-2 text-gray-700 text-sm pl-2 whitespace-pre-wrap">
+                            {strategy.questions.map((q, index) => <li key={index}>{q}</li>)}
+                        </ol>
+                    </div>
+                    <div>
+                        <h3 className="font-garamond text-lg font-bold text-gray-800 border-b pb-2 mb-3">Key Highlights to Mention (Tailored to Role)</h3>
+                        <ul className="list-disc list-inside space-y-2 text-gray-700 text-sm pl-2 whitespace-pre-wrap">
+                            {strategy.highlights.map((h, index) => <li key={index}>{h}</li>)}
+                        </ul>
+                    </div>
+                </div>
+
+                <div className="p-6 border-t flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const CVCheckModal = ({ isOpen, onClose, checks }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4">
+            {/* FIX: Increased max-width to allow more content space */}
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl"> 
+                <div className="p-6 border-b flex justify-between items-center">
+                    <h2 className="font-georgia text-2xl font-bold text-blue-600 flex items-center">
+                        <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        CV Quality Check (AI)
+                    </h2>
+                    {/* FIX: Ensure onClose handler is correctly bound to the close button */}
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Close CV check modal">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]"> {/* Added max height and scroll for long content */}
+                    <div>
+                        <h3 className="font-garamond text-lg font-bold text-gray-800 border-b pb-2 mb-3">Strongest Matches (Kecocokan Terkuat)</h3>
+                        <ul className="list-disc list-inside space-y-2 text-gray-700 text-sm pl-2 whitespace-pre-wrap">
+                            {checks.matches.map((m, index) => <li key={index}>{m}</li>)}
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 className="font-garamond text-lg font-bold text-gray-800 border-b pb-2 mb-3">Areas for Improvement (Area Peningkatan)</h3>
+                        <ol className="list-decimal list-inside space-y-2 text-gray-700 text-sm pl-2 whitespace-pre-wrap">
+                            {checks.improvements.map((i, index) => <li key={index}>{i}</li>)}
+                        </ol>
+                    </div>
+                </div>
+
+                <div className="p-6 border-t flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const ProfileAnalysisModal = ({ isOpen, onClose, onAnalyze, isAnalyzing, currentContext }) => {
+    const [files, setFiles] = useState([]);
+
+    const handleFileChange = (e) => {
+        setFiles(Array.from(e.target.files));
+    };
+
+    const handleAnalyzeClick = () => {
+        if (files.length === 0) {
+            alert("Please upload at least one document (CV, image, or PDF).");
+            return;
+        }
+        onAnalyze(files);
+        // Clear files after processing starts
+        setFiles([]);
+        document.getElementById('profileFile').value = '';
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl">
+                <div className="p-6 border-b flex justify-between items-center">
+                    <h2 className="font-georgia text-2xl font-bold text-indigo-600">About Me: Analisis Profil Komprehensif</h2> {/* Renamed Title */}
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Close profile analysis modal">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    <p className="text-gray-600">
+                        Unggah CV, sertifikat, atau *screenshot* proyek Anda. Gemini akan menganalisis konten gabungan tersebut untuk memperbarui konteks keahlian Anda, menghasilkan saran LLM yang lebih personal dan relevan.
+                    </p>
+
+                    <div className="border border-dashed border-indigo-400 p-5 rounded-lg bg-indigo-50">
+                        <label htmlFor="profileFile" className="block text-lg font-medium text-indigo-700 mb-3">Unggah Dokumen (PNG, JPG, PDF, TXT) - Dapat menggabungkan banyak berkas</label>
+                        <input type="file" id="profileFile" multiple accept=".png,.jpg,.jpeg,.pdf,.txt" onChange={handleFileChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200" disabled={isAnalyzing}/>
+                        {files.length > 0 && <p className="mt-2 text-sm text-indigo-600">{files.length} berkas siap dianalisis.</p>}
+                    </div>
+                    
+                    <button 
+                        onClick={handleAnalyzeClick}
+                        disabled={files.length === 0 || isAnalyzing}
+                        className="w-full px-5 py-3 bg-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:bg-indigo-700 transition disabled:opacity-50 flex items-center justify-center"
+                        aria-label="Analyze and update profile context"
+                    >
+                        {isAnalyzing ? (
+                            <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : (
+                            'Analisis & Perbarui Profil (AI)' // Renamed Button
+                        )}
+                    </button>
+
+                    <div className="pt-4 border-t">
+                        <h3 className="font-garamond text-lg font-bold text-gray-800 mb-2">Konteks Profil Saat Ini (Digunakan AI)</h3>
+                        <div className="p-3 bg-gray-50 border rounded-lg text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {currentContext}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-6 border-t flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const App = () => {
+    // --- State Management ---
+    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [applications, setApplications] = useState([]);
+    const [dbInstance, setDbInstance] = useState(null);
+    const [userId, setUserId] = useState(null);
+    const [userProfileContext, setUserProfileContext] = useState(BASE_SKILLS_CONTEXT); // Dynamic Profile Context
+    
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalData, setModalData] = useState({});
+    const [isScanning, setIsScanning] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false); // State for To-Do generation
+    const [isEmailLoading, setIsEmailLoading] = useState(null); // State for email generation
+    const [isStrategyLoading, setIsStrategyLoading] = useState(null); // State for strategy generation
+    const [isCVCheckLoading, setIsCVCheckLoading] = useState(null); // New state for CV check
+    const [isAnalyzingProfile, setIsAnalyzingProfile] = useState(false); // New state for profile analysis
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // New state for profile modal
+    const [scanStatus, setScanStatus] = useState('');
+    
+    // Email Draft State (New)
+    const [emailDraft, setEmailDraft] = useState({ isOpen: false, subject: '', body: '' });
+    
+    // Strategy Draft State (New)
+    const [strategyDraft, setStrategyDraft] = useState({ isOpen: false, questions: [], highlights: [] });
+
+    // CV Check State (New)
+    const [cvCheck, setCvCheck] = useState({ isOpen: false, matches: [], improvements: [] });
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1); 
+
+    // --- Search State (New Feature) ---
+    const [searchTerm, setSearchTerm] = useState('');
+
+
+    // --- UTILITY HANDLERS (Now defined inside App component scope) ---
+    
+    const showMessage = (message, type = 'success') => {
+        console.log(`[Message: ${type.toUpperCase()}] ${message}`);
+        setScanStatus(message);
+        setTimeout(() => setScanStatus(''), 5000);
+    };
+    
+    // --- CSV UTILITIES ---
+    const CSV_HEADERS = ["role", "company", "location", "appliedDate", "status", "notes", "link", "source"];
+    
+    const convertToCSV = (data) => {
+        const csv = [
+            CSV_HEADERS.join(','),
+            ...data.map(row => CSV_HEADERS.map(header => {
+                let value = row[header] !== undefined && row[header] !== null ? row[header].toString() : '';
+                value = value.replace(/"/g, '""');
+                if (value.includes(',') || value.includes('\n') || value.includes('\r')) {
+                    value = `"${value}"`;
+                }
+                return value;
+            }).join(','))
+        ].join('\n');
+        return csv;
+    };
+
+    const parseCSV = (csvText) => {
+        const [headerLine, ...dataLines] = csvText.trim().split('\n');
+        const headers = headerLine.split(',').map(h => h.replace(/"/g, '').trim());
+
+        if (headers.length < 5 || !headers.includes('role')) {
+            throw new Error("Invalid CSV format. Required headers (role, company, status, etc.) missing.");
+        }
+
+        return dataLines.map(line => {
+            const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            const obj = {};
+            headers.forEach((header, index) => {
+                let value = (values[index] || '').trim().replace(/^"|"$/g, '').replace(/""/g, '"');
+                obj[header] = value;
+            });
+            if (!STATUS_MAP[obj.status]) obj.status = 'TO_APPLY';
+            if (obj.appliedDate && !/^\d{4}-\d{2}-\d{2}$/.test(obj.appliedDate)) {
+                 obj.appliedDate = new Date().toISOString().split('T')[0];
+            }
+            return obj;
+        });
+    };
+
+    // --- EXPORT/IMPORT HANDLERS ---
+
+    const handleExport = () => {
+        const csv = convertToCSV(applications);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `zefanya_applications_${new Date().toISOString().split('T')[0]}.csv`);
+        link.click();
+        showMessage('Data exported successfully!', 'success');
+    };
+
+    const handleImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const csvText = event.target.result;
+                const importedData = parseCSV(csvText);
+
+                if (importedData.length === 0) {
+                    showMessage('File CSV kosong atau tidak valid.', 'error');
+                    return;
+                }
+
+                if (!userId || !dbInstance) {
+                    showMessage('Authentication failed, cannot import.', 'error');
+                    return;
+                }
+
+                const path = `artifacts/${appId}/users/${userId}/saas_application_tracker`;
+                const batch = writeBatch(dbInstance);
+                const q = collection(dbInstance, path);
+
+                importedData.forEach(item => {
+                    const newDocRef = doc(q);
+                    batch.set(newDocRef, { ...item, timestamp: Timestamp.now(), source: item.source || 'CSV Import' });
+                });
+
+                await batch.commit();
+                showMessage(`Successfully imported ${importedData.length} entries!`, 'success');
+                e.target.value = null; 
+            } catch (error) {
+                console.error("Import Error:", error);
+                showMessage(`Import failed: ${error.message}`, 'error');
+            }
+        };
+        reader.readAsText(file);
+    };
+
+
+    // --- FIREBASE INITIALIZATION & AUTH ---
+    useEffect(() => {
+        setLogLevel('error');
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
+            
+            setDbInstance(db);
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                    setIsAuthReady(true);
+                } else {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Initial Authentication Error:", error);
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("Firebase Initialization Failed:", e);
+        }
+    }, []);
+
+    // --- FIRESTORE LISTENER (Data Fetching) ---
+    useEffect(() => {
+        if (!isAuthReady || !dbInstance || !userId) return;
+
+        const COLLECTION_NAME = "saas_application_tracker";
+        const path = `artifacts/${appId}/users/${userId}/${COLLECTION_NAME}`;
+        const q = collection(dbInstance, path);
+        const profileDocRef = doc(dbInstance, `artifacts/${appId}/users/${userId}/profile`, 'context');
+
+
+        const checkAndPopulateInitialData = async () => {
+            // 1. Check/Populate Applications
+            const snapshotCheck = await getDocs(q);
+            if (snapshotCheck.empty) {
+                const batch = writeBatch(dbInstance);
+                initialApplications.forEach(app => {
+                    // Use Firestore Timestamp for initial data, or simulated MS for sorting
+                    const timestamp = app.timestamp ? new Date(app.timestamp) : Timestamp.now(); 
+                    batch.set(doc(q), { ...app, timestamp });
+                });
+                await batch.commit();
+            }
+
+            // 2. Check/Populate Profile Context
+            const profileSnap = await getDoc(profileDocRef);
+            if (profileSnap.exists()) {
+                setUserProfileContext(profileSnap.data().context);
+            } else {
+                // Initialize with base context
+                await setDoc(profileDocRef, { context: BASE_SKILLS_CONTEXT });
+                setUserProfileContext(BASE_SKILLS_CONTEXT);
+            }
+        };
+
+        checkAndPopulateInitialData().then(() => {
+            // Start listening to Profile Context changes
+            const unsubscribeProfile = onSnapshot(profileDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    setUserProfileContext(docSnap.data().context);
+                }
+            });
+
+            // Start listening to Applications changes
+            const unsubscribeApps = onSnapshot(q, (snapshot) => {
+                const fetchedApps = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    timestamp: doc.data().timestamp ? (doc.data().timestamp instanceof Timestamp ? doc.data().timestamp.toDate() : new Date(doc.data().timestamp)) : new Date(),
+                }));
+
+                fetchedApps.sort((a, b) => {
+                    const statusOrder = { 'TO_APPLY': 1, 'INTERVIEW': 2, 'IN_REVIEW': 3, 'SUBMITTED': 4, 'OFFER': 5, 'REJECTED': 6, 'DONE_PROJECT': 7, 'ACTION': 8 };
+                    if (statusOrder[a.status] !== statusOrder[b.status]) {
+                        return statusOrder[a.status] - statusOrder[b.status];
+                    }
+                    return b.timestamp.getTime() - a.timestamp.getTime();
+                });
+                setApplications(fetchedApps);
+            }, (error) => {
+                console.error("Firestore Listener Error:", error);
+            });
+            return () => {
+                unsubscribeApps();
+                unsubscribeProfile();
+            }; // Cleanup listeners
+        });
+
+    }, [isAuthReady, dbInstance, userId]);
+
+    // --- GEMINI: PROFILE ANALYZER ---
+    const handleAnalyzeProfile = async (files) => {
+        setIsAnalyzingProfile(true);
+        showMessage(`Analyzing ${files.length} documents... This may take a moment.`, 'warning');
+
+        try {
+            const partPromises = files.map(file => {
+                const readerPromise = new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    
+                    if (file.type.startsWith('image/') || file.type.includes('pdf')) {
+                        reader.readAsDataURL(file);
+                    } else {
+                        reader.readAsText(file);
+                    }
+                });
+
+                return readerPromise.then(result => {
+                    const mimeType = file.type;
+                    const isImageOrPDF = mimeType.startsWith('image/') || mimeType.includes('pdf');
+                    
+                    if (isImageOrPDF) {
+                        const base64Data = result.split(',')[1];
+                        return { inlineData: { mimeType, data: base64Data } };
+                    } else {
+                        return { text: `--- Start Document: ${file.name} ---\n${result}\n--- End Document ---` };
+                    }
+                });
+            });
+            
+            const documentParts = await Promise.all(partPromises);
+            
+            const userQuery = `Analyze these ${files.length} documents (CVs, certificates, project docs, images) and synthesize a comprehensive professional profile summary (2-3 paragraphs) of Zefanya Williams's core professional skills, technical expertise, and career focus for job applications. Emphasize the intersection of Digital Marketing, Data Science, and Content Creation/Leadership. Output only the summarized context paragraph(s).`;
+            
+            const payload = { contents: [{ role: "user", parts: [...documentParts, { text: userQuery }] }] };
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+            const generatedContext = result.candidates?.[0]?.content?.parts?.[0]?.text || BASE_SKILLS_CONTEXT;
+
+            const profileDocRef = doc(dbInstance, `artifacts/${appId}/users/${userId}/profile`, 'context');
+            await setDoc(profileDocRef, { context: generatedContext.trim(), lastUpdated: Timestamp.now() });
+
+            showMessage('Profile context successfully updated from documents!', 'success');
+
+        } catch (error) {
+            console.error("Profile Analysis Error:", error);
+            showMessage('Failed to analyze documents. Check console for details.', 'error');
+        } finally {
+            setIsAnalyzingProfile(false);
+            setIsProfileModalOpen(false);
+        }
+    };
+
+
+    // --- GEMINI: NEXT STEPS GENERATOR ---
+    const handleGenerateNotes = async (role, company, setFormData) => {
+        setIsGenerating(true);
+        showMessage('Generating tailored action plan...', 'warning');
+
+        try {
+            const userQuery = `Act as a career coach. Given the job role "${role}" at "${company}", and considering the user's current profile context: "${userProfileContext}", generate a concise, numbered list (3 to 5 points) of highly relevant action items or next steps. Focus on preparation, research, or tailoring skills specific to this job type. Do NOT use introductory or concluding sentences. Only output the numbered list items separated by newlines.`;
+            
+            const payload = { contents: [{ parts: [{ text: userQuery }] }] };
+
+            const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || '1. Failed to generate steps. 2. Manual input required.';
+            
+            setFormData(prev => ({ ...prev, notes: generatedText.trim() }));
+            showMessage('Action plan generated successfully!', 'success');
+
+        } catch (error) {
+            console.error("Gemini Generation Error:", error);
+            showMessage('Failed to generate action plan.', 'error');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    // --- GEMINI: FOLLOW-UP EMAIL DRAFTER ---
+    const handleGenerateEmail = async (app) => {
+        setIsEmailLoading(app.id);
+        
+        let actionType;
+        if (app.status === 'INTERVIEW') {
+            actionType = 'a polite thank-you and results follow-up after an interview';
+        } else if (app.status === 'IN_REVIEW' || app.status === 'SUBMITTED') {
+             actionType = 'a polite general application status check (after waiting 10-14 days)';
+        } else if (app.status === 'OFFER') {
+             actionType = 'a request for offer clarification and confirmation of the decision deadline';
+        } else {
+             actionType = 'a polite general follow-up';
+        }
+
+        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${app.role}" at "${app.company}", applied on ${app.appliedDate}. The email should be a ${actionType}. Use a professional, respectful tone. The body must include the name Zefanya Williams and gently remind the recruiter of one key skill relevant to the role, based on this profile: ${userProfileContext}.
+        
+        Output format:
+        Subject: [Your Subject Line]
+        
+        Dear [Recruiter/Hiring Team],
+        
+        [Email Body]
+        
+        Sincerely,
+        Zefanya Williams`;
+
+        try {
+            const payload = { contents: [{ parts: [{ text: userQuery }] }] };
+            const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            const generatedEmail = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Subject: AI Draft Failed\n\nDear Recruiter,\n\nI was unable to generate the draft. Please copy the details manually.\n\nSincerely,\nZefanya Williams';
+            
+            const lines = generatedEmail.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            
+            let subject = '';
+            let bodyLines = [];
+            let inBody = false;
+
+            for (const line of lines) {
+                if (line.startsWith('Subject:')) {
+                    subject = line.replace('Subject:', '').trim();
+                } else if (line.startsWith('Dear')) {
+                    bodyLines.push(line);
+                    inBody = true;
+                } else if (inBody) {
+                    bodyLines.push(line);
+                }
+            }
+            
+            setEmailDraft({ isOpen: true, subject: subject || 'Follow-up Application Status', body: bodyLines.join('\n\n') });
+            showMessage(`Email draft generated for ${app.role}!`, 'success');
+
+        } catch (error) {
+            console.error("Gemini Email Generation Error:", error);
+            alert("Failed to generate email. Check console for details.");
+            showMessage('Failed to generate email.', 'error');
+        } finally {
+            setIsEmailLoading(null);
+        }
+    };
+
+    // GEMINI: INTERVIEW STRATEGY GENERATOR
+    const handleGenerateStrategy = async (app) => {
+        setIsStrategyLoading(app.id);
+        const strategyAPI_URL = API_URL; 
+
+        const prompt = `Based on the job role "${app.role}" at "${app.company}", and considering the user's current profile context: "${userProfileContext}", generate two lists:
+        1. Top 3-4 Potential Interview Questions: List the most likely technical or behavioral questions for this specific role.
+        2. Top 3-4 Key Highlights to Mention: List the key selling points from the user's background that are most relevant to answering those questions and securing this specific job.
+
+        Format the output clearly separating the two sections with '---'. Use numbered lists for questions and bullet points for highlights.`;
+
+        try {
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+            const response = await fetch(strategyAPI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Failed to generate strategy.';
+
+            const [questionsSection, highlightsSection] = generatedText.split('---').map(s => s.trim());
+
+            const extractList = (section) => {
+                if (!section) return [];
+                return section.split('\n').map(line => line.replace(/^\s*[\d\.\*-]+\s*/, '').trim()).filter(line => line.length > 0);
+            };
+
+            setStrategyDraft({
+                isOpen: true,
+                questions: extractList(questionsSection.includes('Questions') ? questionsSection : '1. Analysis of a past project'),
+                highlights: extractList(highlightsSection || '• Highlight Digital Marketing certification'),
+            });
+
+            showMessage('Interview strategy generated!', 'success');
+
+        } catch (error) {
+            console.error("Strategy Generation Error:", error);
+            showMessage('Failed to generate strategy.', 'error');
+        } finally {
+            setIsStrategyLoading(null);
+        }
+    };
+    
+    // GEMINI: CV CHECK/OPTIMIZATION GENERATOR
+    const handleCVCheck = async (app) => {
+        setIsCVCheckLoading(app.id);
+        const cvCheckAPI_URL = API_URL; 
+
+        const prompt = `Act as an ATS/HR Analyst. Analyze the Job Role "${app.role}" at "${app.company}" against the user's current profile context: "${userProfileContext}". Provide feedback in two clear sections:
+        1. Strongest Matches: Identify 3 key skills, experiences, or certifications from the profile that are highly relevant to this specific role.
+        2. Areas for CV Improvement: Identify 3 areas where the existing CV/profile summary should be adjusted, emphasized, or quantified (e.g., specific metrics needed, skills to move up) to better align with the job description.
+
+        Format the output clearly separating the two sections with '---'. Use bullet points for both lists.`;
+
+        try {
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+            const response = await fetch(cvCheckAPI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Failed to generate CV check.';
+
+            const [matchesSection, improvementsSection] = generatedText.split('---').map(s => s.trim());
+
+            const extractList = (section) => {
+                if (!section) return [];
+                return section.split('\n').map(line => line.replace(/^\s*[\d\.\*-]+\s*/, '').trim()).filter(line => line.length > 0);
+            };
+
+            setCvCheck({
+                isOpen: true,
+                matches: extractList(matchesSection.includes('Matches') ? matchesSection : '• Data Science background is a strong match.'),
+                improvements: extractList(improvementsSection || '1. Quantify achievements in Content Creation.'),
+            });
+
+            showMessage('CV check results generated!', 'success');
+
+        } catch (error) {
+            console.error("CV Check Generation Error:", error);
+            showMessage('Failed to generate CV check.', 'error');
+        } finally {
+            setIsCVCheckLoading(null);
+        }
+    };
+
+
+    // --- CRUD HANDLERS ---
+    
+    const handleSave = async (data) => {
+        if (!userId || !dbInstance) return;
+        const path = `artifacts/${appId}/users/${userId}/saas_application_tracker`;
+        
+        try {
+            if (data.id) {
+                await updateDoc(doc(dbInstance, path, data.id), { ...data, timestamp: Timestamp.now() });
+                showMessage('Application successfully updated!', 'success');
+            } else {
+                await addDoc(collection(dbInstance, path), { ...data, timestamp: Timestamp.now() });
+                showMessage('Application successfully added!', 'success');
+            }
+            setIsModalOpen(false);
+            setModalData({});
+            setCurrentPage(1); 
+        } catch (e) {
+            console.error("Error saving document: ", e);
+            showMessage('Failed to save application.', 'error');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!userId || !dbInstance) return;
+        if (window.confirm("Are you sure you want to delete this application?")) {
+            const path = `artifacts/${appId}/users/${userId}/saas_application_tracker`;
+            try {
+                await deleteDoc(doc(dbInstance, path, id));
+                showMessage('Application successfully deleted!', 'success');
+                setCurrentPage(prev => Math.min(prev, Math.ceil((applications.length - 1) / ITEMS_PER_PAGE) || 1));
+            } catch (e) {
+                console.error("Error deleting document: ", e);
+                showMessage('Failed to delete application.', 'error');
+            }
+        }
+    };
+    
+    // --- MODAL CONTROL ---
+
+    const handleAddClick = () => {
+        setModalData({
+            role: '', company: '', location: '', appliedDate: new Date().toISOString().split('T')[0], status: 'TO_APPLY', link: '', notes: '', source: 'Manual Input'
+        });
+        setScanStatus('');
+        setIsScanning(false);
+        setIsModalOpen(true);
+    };
+
+    const handleEdit = (app) => {
+        setModalData({ ...app, appliedDate: app.appliedDate || new Date().toISOString().split('T')[0] });
+        setScanStatus('');
+        setIsScanning(false);
+        setIsModalOpen(true);
+    };
+
+    // --- AI SCAN LOGIC ---
+    
+    const handleImageScanClick = () => {
+        document.getElementById('imageFile').click();
+    };
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        handleAddClick();
+        
+        setIsScanning(true);
+        setScanStatus('Scanning image and extracting data...');
+        
+        try {
+            const base64ImageData = await fileToBase64(file);
+            const userPrompt = "Extract the Company Name, the Job Role/Position, and the Date (Applied Date or Deadline).";
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [{ text: userPrompt }, { inlineData: { mimeType: file.type, data: base64ImageData } }]
+                }],
+                systemInstruction: OCR_SYSTEM_INSTRUCTION,
+                generationConfig: { responseMimeType: "application/json", responseSchema: OCR_RESPONSE_SCHEMA }
+            };
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+            const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!jsonText) throw new Error("AI response was empty.");
+            
+            const extractedData = JSON.parse(jsonText)?.[0] || {};
+            
+            const newRole = extractedData.jobRole !== 'N/A' ? extractedData.jobRole : '';
+            const newCompany = extractedData.companyName !== 'N/A' ? extractedData.companyName : '';
+            const newDate = extractedData.date?.match(/^\d{4}-\d{2}-\d{2}$/) ? extractedData.date : new Date().toISOString().split('T')[0];
+            
+            setModalData(prev => ({
+                ...prev,
+                role: newRole,
+                company: newCompany,
+                appliedDate: newDate,
+                notes: newDate !== extractedData.date ? `Extracted Date was invalid ('${extractedData.date}'). Set to today's date.` : (prev.notes || ''),
+                status: 'IN_REVIEW', 
+                source: 'Image Scan',
+            }));
+            
+            setScanStatus('Data extracted and populated successfully! Review details before saving.', 'success');
+
+        } catch (error) {
+            console.error("Image Scan Error:", error);
+            setScanStatus('An error occurred during scanning. Check console.', 'error');
+        } finally {
+            setIsScanning(false);
+            e.target.value = null; 
+        }
+    };
+
+
+    // --- UI Calculations ---
+
+    const total = applications.length;
+    const { successRate, totalActive, timeSinceLastAction } = calculateKPIs(applications);
+
+    const inReview = applications.filter(a => a.status === 'IN_REVIEW' || a.status === 'SUBMITTED').length;
+    const interviews = applications.filter(a => a.status === 'INTERVIEW' || a.status === 'ACTION').length;
+    const offers = applications.filter(a => a.status === 'OFFER').length;
+    const rejected = applications.filter(a => a.status === 'REJECTED').length;
+
+
+    // --- Pagination Logic ---
+    const filteredApps = applications.filter(app => 
+        app.role.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        app.company.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    const totalPages = Math.ceil(filteredApps.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const appsToRender = filteredApps.slice(startIndex, endIndex);
+
+
+    if (!isAuthReady) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="text-xl text-indigo-600 font-semibold">Memuat Dasbor...</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 lg:p-12">
+            {/* INJECT CUSTOM FONTS */}
+            <style jsx global>{`
+                @import url('https://fonts.googleapis.com/css2?family=Georgia&family=Garamond&family=Helvetica+Neue&display=swap');
+                .font-helvetica { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+                .font-georgia { font-family: Georgia, serif; }
+                .font-garamond { font-family: Garamond, serif; }
+            `}</style>
+            
+            <div className="max-w-7xl mx-auto">
+                
+                {/* HEADER */}
+                <header className="mb-8 bg-white p-6 rounded-2xl shadow-lg">
+                    <div className="flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <h1 className="font-helvetica text-4xl font-extrabold text-gray-800">Application Flow Tracker</h1>
+                            <p className="text-lg text-gray-500 mt-1">Mengelola *pipeline* Anda, dari To-Do hingga Offer.</p>
+                        </div>
+                        <div className="flex space-x-3">
+                             {/* New Profile Button */}
+                            <button onClick={() => setIsProfileModalOpen(true)} className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-purple-700 transition duration-150 transform hover:scale-[1.02]">
+                                About Me
+                            </button>
+                            <button onClick={handleAddClick} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-indigo-700 transition duration-150 transform hover:scale-[1.02]">
+                                + Add Application
+                            </button>
+                             {/* Scan Image button */}
+                            <input type="file" id="imageFile" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                            <button onClick={handleImageScanClick} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-blue-700 transition duration-150 transform hover:scale-[1.02] flex items-center">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                Scan Image (AI)
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                {/* VISUALIZATION AND KPI GRID */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    {/* KPI Cards (Metrics) */}
+                    <SummaryCard 
+                        title="Success Rate" 
+                        count={successRate} 
+                        colorClass="bg-white border-l-4 border-green-500"
+                        icon={<svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.066 12.066 0 001 14c0 3.785 2.766 6.945 6.467 8.165A11.986 11.986 0 0012 21.65c3.248 0 6.136-1.393 8.165-3.693C20.669 16.945 22 14.542 22 12c0-2.458-1.331-4.86-3.382-6.96"></path></svg>}
+                        description="Offers / Total Finalized Applications"
+                    />
+                    <SummaryCard 
+                        title="Active Pipeline" 
+                        count={totalActive} 
+                        colorClass="bg-white border-l-4 border-indigo-500"
+                        icon={<svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a4 4 0 014-4h10a4 4 0 014 4v1m-4-4h2m-4 0h-2"></path></svg>}
+                        description="In Review, Submitted, Interview"
+                    />
+                    <SummaryCard 
+                        title="Last Update" 
+                        count={timeSinceLastAction} 
+                        colorClass="bg-white border-l-4 border-yellow-500"
+                        icon={<svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
+                        description="Sejak status aplikasi terakhir diperbarui"
+                    />
+                    {/* Status Distribution Chart (Visualization) */}
+                    <div className="lg:col-span-3">
+                        <StatusDistributionChart applications={applications} />
+                    </div>
+                </div>
+
+
+                {/* FILTER AND ACTION BAR */}
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0 sm:space-x-4">
+                    <div className="w-full sm:w-1/2">
+                        <label htmlFor="searchInput" className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Search Applications
+                        </label>
+                        <input
+                            id="searchInput"
+                            type="text"
+                            placeholder="Search by job role or company name..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setCurrentPage(1); // Reset to first page when searching
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
+                            aria-describedby="searchHelp"
+                        />
+                        <p id="searchHelp" className="text-xs text-gray-500 mt-1">
+                            Filter by job role or company name
+                        </p>
+                    </div>
+                    <div className="flex space-x-3">
+                         {/* Import/Export buttons moved here for better organization */}
+                         <button onClick={handleExport} className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-green-700 transition duration-150 flex items-center text-sm">
+                            Export CSV
+                        </button>
+                        <input type="file" id="importFile" accept=".csv" className="hidden" onChange={handleImport} />
+                        <button onClick={() => document.getElementById('importFile').click()} className="bg-yellow-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-yellow-700 transition duration-150 flex items-center text-sm">
+                            Import CSV
+                        </button>
+                    </div>
+                </div>
+
+                {/* APPLICATION LIST (CARD ROWS) */}
+                <h2 className="font-georgia text-2xl font-bold text-gray-700 mb-5">Application Pipeline ({filteredApps.length} Results)</h2>
+
+                <div className="space-y-4">
+                    {appsToRender.length > 0 ? (
+                        appsToRender.map(app => (
+                            <ApplicationCard 
+                                key={app.id} 
+                                app={app} 
+                                onEdit={handleEdit} 
+                                onDelete={handleDelete} 
+                                onGenerateEmail={handleGenerateEmail} 
+                                isEmailLoading={isEmailLoading} 
+                                onGenerateStrategy={handleGenerateStrategy} 
+                                isStrategyLoading={isStrategyLoading} 
+                                onCVCheck={handleCVCheck} 
+                                isCVCheckLoading={isCVCheckLoading} 
+                            />
+                        ))
+                    ) : (
+                        <div className="p-10 text-center bg-white rounded-xl shadow-md text-gray-500">
+                            Tidak ada lamaran yang cocok dengan kriteria pencarian Anda.
+                        </div>
+                    )}
+                </div>
+
+                {/* PAGINATION */}
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-6 p-4 bg-white rounded-xl shadow-lg">
+                        <div className="text-sm text-gray-600">
+                            Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredApps.length)} dari {filteredApps.length} hasil (Halaman {currentPage} dari {totalPages})
+                        </div>
+                        <div className="space-x-3">
+                            <button 
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
+                            >
+                                Sebelumnya
+                            </button>
+                            <button 
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition"
+                            >
+                                Selanjutnya
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Modals --- */}
+            
+            <ApplicationModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSave={handleSave}
+                initialData={modalData}
+                isScanning={isScanning}
+                scanStatus={scanStatus}
+                handleImageUpload={handleImageUpload}
+                onGenerateNotes={handleGenerateNotes}
+                isGenerating={isGenerating}
+            />
+            
+            <EmailDraftModal 
+                isOpen={emailDraft.isOpen}
+                onClose={() => setEmailDraft({ isOpen: false, subject: '', body: '' })}
+                draft={emailDraft}
+            />
+
+            <StrategyModal
+                isOpen={strategyDraft.isOpen}
+                onClose={() => setStrategyDraft({ isOpen: false, questions: [], highlights: [] })}
+                strategy={strategyDraft}
+            />
+            
+            <CVCheckModal
+                isOpen={cvCheck.isOpen}
+                onClose={() => setCvCheck({ isOpen: false, matches: [], improvements: [] })}
+                checks={cvCheck}
+            />
+
+            <ProfileAnalysisModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                onAnalyze={handleAnalyzeProfile}
+                isAnalyzing={isAnalyzingProfile}
+                currentContext={userProfileContext}
+            />
+        </div>
+    );
+};
+
+// --- Helper function for image processing (must be outside App component)
+const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+    });
+}
+
+// --- KPI HELPER (Outside App component) ---
+const calculateKPIs = (apps) => {
+    const totalFinalized = apps.filter(a => a.status === 'OFFER' || a.status === 'REJECTED' || a.status === 'DONE_PROJECT').length;
+    const totalOffers = apps.filter(a => a.status === 'OFFER').length;
+    const totalActive = apps.filter(a => a.status === 'IN_REVIEW' || a.status === 'SUBMITTED' || a.status === 'INTERVIEW' || a.status === 'ACTION').length;
+    
+    // Success Rate
+    const successRate = totalFinalized > 0 ? ((totalOffers / totalFinalized) * 100).toFixed(0) + '%' : '0%';
+
+    // Time Since Last Action
+    let timeSinceLastAction = 'N/A';
+    if (apps.length > 0) {
+        const latestTimestamp = apps.reduce((max, app) => Math.max(max, app.timestamp.getTime()), 0);
+        const diff = Date.now() - latestTimestamp;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        
+        if (days > 0) {
+             timeSinceLastAction = `${days} hari lalu`;
+        } else if (hours > 0) {
+             timeSinceLastAction = `${hours} jam lalu`;
+        } else {
+             timeSinceLastAction = 'Baru saja';
+        }
+    }
+    
+    return { successRate, totalActive, timeSinceLastAction };
+};
+
+
+export default App;
