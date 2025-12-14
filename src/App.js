@@ -17,7 +17,13 @@ import {
     EmailDraftModal,
     StrategyModal,
     CVCheckModal,
-    ProfileAnalysisModal
+    ProfileAnalysisModal,
+    AppShell,
+    Sidebar,
+    Topbar,
+    StatCard,
+    ChartCard,
+    ApplicationsTable
 } from './components/index.js';
 
 // Utility Imports
@@ -77,6 +83,9 @@ const App = () => {
     // Pagination and Search State
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
+    
+    // Dashboard UI State
+    const [activeTab, setActiveTab] = useState('dashboard');
 
     // --- UTILITY HANDLERS ---
     
@@ -103,6 +112,10 @@ const App = () => {
         const csv = convertToCSV(applications);
         downloadCSV(csv, `zefanya_applications_${new Date().toISOString().split('T')[0]}.csv`);
         showMessage('Data exported successfully!', 'success');
+    };
+
+    const handleImportClick = () => {
+        document.getElementById('importFile').click();
     };
 
     const handleImport = (e) => {
@@ -763,177 +776,167 @@ User profile context: ${sanitizedContext}`;
         );
     }
 
+    // Calculate additional KPIs
+    const { successRate, totalActive, timeSinceLastAction, totalOffers } = calculateKPIs(applications);
+    const interviewCount = applications.filter(a => a.status === 'INTERVIEW').length;
+    const rejectedCount = applications.filter(a => a.status === 'REJECTED').length;
+
     return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 lg:p-12">
-            <div className="max-w-7xl mx-auto">
+        <AppShell
+            sidebar={<Sidebar activeTab={activeTab} onTabChange={setActiveTab} />}
+            topbar={
+                <Topbar
+                    searchTerm={searchTerm}
+                    onSearchChange={(value) => {
+                        setSearchTerm(value);
+                        setCurrentPage(1);
+                    }}
+                    onAddClick={handleAddClick}
+                    onScanClick={handleImageScanClick}
+                    onProfileClick={() => setIsProfileModalOpen(true)}
+                    onExport={handleExport}
+                    onImport={handleImportClick}
+                />
+            }
+        >
+            {/* Hidden file inputs */}
+            <input type="file" id="imageFile" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            <input type="file" id="importFile" accept=".csv" className="hidden" onChange={handleImport} />
+
+            {/* Page Title */}
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-gray-600 mt-1">Track and manage your job applications</p>
+            </div>
+
+            {/* KPI Cards Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <StatCard
+                    icon={
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    }
+                    label="Total Applications"
+                    value={applications.length}
+                    helperText="All tracked applications"
+                    colorClass="text-indigo-600"
+                />
+                <StatCard
+                    icon={
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    }
+                    label="Active Pipeline"
+                    value={totalActive}
+                    helperText="In Review, Submitted, Interview"
+                    colorClass="text-blue-600"
+                />
+                <StatCard
+                    icon={
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                    }
+                    label="Interviews"
+                    value={interviewCount}
+                    helperText="Scheduled or completed"
+                    colorClass="text-purple-600"
+                />
+                <StatCard
+                    icon={
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    }
+                    label="Offers"
+                    value={totalOffers}
+                    helperText={`Success rate: ${successRate}`}
+                    colorClass="text-green-600"
+                />
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <ChartCard 
+                    title="Status Distribution" 
+                    subtitle="Overview of application statuses"
+                >
+                    <StatusDistributionChart applications={applications} />
+                </ChartCard>
                 
-                {/* HEADER */}
-                <header className="mb-8 bg-white p-6 rounded-2xl shadow-lg animate-fadeIn">
-                    <div className="flex justify-between items-center flex-wrap gap-4">
-                        <div>
-                            <h1 className="font-helvetica text-4xl font-extrabold text-gray-800 animate-slideInLeft">
-                                Application Flow Tracker
-                            </h1>
-                            <p className="text-lg text-gray-500 mt-1 animate-slideInLeft" style={{ animationDelay: '0.1s' }}>
-                                Mengelola *pipeline* Anda, dari To-Do hingga Offer.
-                            </p>
-                        </div>
-                        <div className="flex space-x-3">
-                            <button 
-                                onClick={() => setIsProfileModalOpen(true)} 
-                                className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-purple-700 transition-all-smooth btn-primary animate-slideInRight"
-                            >
-                                About Me
-                            </button>
-                            <button 
-                                onClick={handleAddClick} 
-                                className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-indigo-700 transition-all-smooth btn-primary animate-slideInRight" 
-                                style={{ animationDelay: '0.1s' }}
-                            >
-                                + Add Application
-                            </button>
-                            <input type="file" id="imageFile" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                            <button 
-                                onClick={handleImageScanClick} 
-                                className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-blue-700 transition-all-smooth btn-primary flex items-center animate-slideInRight" 
-                                style={{ animationDelay: '0.2s' }}
-                            >
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                </svg>
-                                Scan Image (AI)
-                            </button>
-                        </div>
+                <ChartCard 
+                    title="Recent Activity" 
+                    subtitle="Last updated applications"
+                >
+                    <div className="space-y-3">
+                        {applications.slice(0, 5).map((app) => (
+                            <div key={app.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">{app.role}</p>
+                                    <p className="text-xs text-gray-500">{app.company}</p>
+                                </div>
+                                <StatusBadge status={app.status} />
+                            </div>
+                        ))}
+                        {applications.length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-4">No recent applications</p>
+                        )}
                     </div>
-                </header>
+                </ChartCard>
+            </div>
 
-                {/* VISUALIZATION AND KPI GRID */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                    <SummaryCard 
-                        title="Success Rate" 
-                        count={successRate} 
-                        colorClass="bg-white border-l-4 border-green-500"
-                        icon={
-                            <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.066 12.066 0 001 14c0 3.785 2.766 6.945 6.467 8.165A11.986 11.986 0 0012 21.65c3.248 0 6.136-1.393 8.165-3.693C20.669 16.945 22 14.542 22 12c0-2.458-1.331-4.86-3.382-6.96"></path>
-                            </svg>
-                        }
-                        description="Offers / Total Finalized Applications"
-                    />
-                    <SummaryCard 
-                        title="Active Pipeline" 
-                        count={totalActive} 
-                        colorClass="bg-white border-l-4 border-indigo-500"
-                        icon={
-                            <svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a4 4 0 014-4h10a4 4 0 014 4v1m-4-4h2m-4 0h-2"></path>
-                            </svg>
-                        }
-                        description="In Review, Submitted, Interview"
-                    />
-                    <SummaryCard 
-                        title="Last Update" 
-                        count={timeSinceLastAction} 
-                        colorClass="bg-white border-l-4 border-yellow-500"
-                        icon={
-                            <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        }
-                        description="Sejak status aplikasi terakhir diperbarui"
-                    />
-                    <div className="lg:col-span-3">
-                        <StatusDistributionChart applications={applications} />
-                    </div>
-                </div>
-
-                {/* FILTER AND ACTION BAR */}
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0 sm:space-x-4 animate-fadeIn">
-                    <div className="w-full sm:w-1/2">
-                        <label htmlFor="searchInput" className="block text-sm font-medium text-gray-700 mb-1.5">
-                            Search Applications
-                        </label>
-                        <input
-                            id="searchInput"
-                            type="text"
-                            placeholder="Search by job role or company name..."
-                            value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                            aria-describedby="searchHelp"
-                        />
-                        <p id="searchHelp" className="text-xs text-gray-500 mt-1">
-                            Filter by job role or company name
+            {/* Applications Section */}
+            <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 className="text-xl font-semibold text-gray-900">Applications</h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                            {filteredApps.length} {filteredApps.length === 1 ? 'result' : 'results'}
+                            {searchTerm && ` for "${searchTerm}"`}
                         </p>
                     </div>
-                    <div className="flex space-x-3">
-                        <button 
-                            onClick={handleExport} 
-                            className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-green-700 transition-all-smooth flex items-center text-sm"
-                        >
-                            Export CSV
-                        </button>
-                        <input type="file" id="importFile" accept=".csv" className="hidden" onChange={handleImport} />
-                        <button 
-                            onClick={() => document.getElementById('importFile').click()} 
-                            className="bg-yellow-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-yellow-700 transition-all-smooth flex items-center text-sm"
-                        >
-                            Import CSV
-                        </button>
-                    </div>
                 </div>
 
-                {/* APPLICATION LIST */}
-                <h2 className="font-georgia text-2xl font-bold text-gray-700 mb-5 animate-slideInLeft">
-                    Application Pipeline ({filteredApps.length} Results)
-                </h2>
+                {/* Applications Table */}
+                <ApplicationsTable
+                    applications={appsToRender}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onGenerateEmail={handleGenerateEmail}
+                    onGenerateStrategy={handleGenerateStrategy}
+                    onCVCheck={handleCVCheck}
+                    isEmailLoading={isEmailLoading}
+                    isStrategyLoading={isStrategyLoading}
+                    isCVCheckLoading={isCVCheckLoading}
+                />
 
-                <div className="space-y-4">
-                    {appsToRender.length > 0 ? (
-                        appsToRender.map((app, index) => (
-                            <ApplicationCard 
-                                key={app.id} 
-                                app={app} 
-                                onEdit={handleEdit} 
-                                onDelete={handleDelete} 
-                                onGenerateEmail={handleGenerateEmail} 
-                                isEmailLoading={isEmailLoading} 
-                                onGenerateStrategy={handleGenerateStrategy} 
-                                isStrategyLoading={isStrategyLoading} 
-                                onCVCheck={handleCVCheck} 
-                                isCVCheckLoading={isCVCheckLoading} 
-                            />
-                        ))
-                    ) : (
-                        <div className="p-10 text-center bg-white rounded-xl shadow-md text-gray-500 animate-fadeIn">
-                            Tidak ada lamaran yang cocok dengan kriteria pencarian Anda.
-                        </div>
-                    )}
-                </div>
-
-                {/* PAGINATION */}
+                {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-6 p-4 bg-white rounded-xl shadow-lg animate-fadeIn">
+                    <div className="flex items-center justify-between mt-4 px-6 py-4 bg-white rounded-xl shadow-sm border border-gray-100">
                         <div className="text-sm text-gray-600">
-                            Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredApps.length)} dari {filteredApps.length} hasil (Halaman {currentPage} dari {totalPages})
+                            Showing {startIndex + 1}-{Math.min(endIndex, filteredApps.length)} of {filteredApps.length} results
                         </div>
-                        <div className="space-x-3">
-                            <button 
+                        <div className="flex items-center space-x-2">
+                            <button
                                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                 disabled={currentPage === 1}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-all-smooth"
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                aria-label="Previous page"
                             >
-                                Sebelumnya
+                                Previous
                             </button>
-                            <button 
+                            <span className="text-sm text-gray-600">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
                                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                 disabled={currentPage === totalPages}
-                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all-smooth"
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                aria-label="Next page"
                             >
-                                Selanjutnya
+                                Next
                             </button>
                         </div>
                     </div>
@@ -978,7 +981,7 @@ User profile context: ${sanitizedContext}`;
                 isAnalyzing={isAnalyzingProfile}
                 currentContext={userProfileContext}
             />
-        </div>
+        </AppShell>
     );
 };
 
