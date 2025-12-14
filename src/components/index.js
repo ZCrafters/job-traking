@@ -20,3 +20,11 @@ export { default as ApplicationCardEnhanced } from './ApplicationCardEnhanced.js
 export { default as ModalEnhanced } from './ModalEnhanced.js';
 export { default as ThreeBackground } from './ThreeBackground.js';
 export { default as ZdogIcon } from './ZdogIcon.js';
+
+// Modern Admin Dashboard Components
+export { default as AppShell } from './AppShell.js';
+export { default as Sidebar } from './Sidebar.js';
+export { default as Topbar } from './Topbar.js';
+export { default as StatCard } from './StatCard.js';
+export { default as ChartCard } from './ChartCard.js';
+export { default as ApplicationsTable } from './ApplicationsTable.js';
