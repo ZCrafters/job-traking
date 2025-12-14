@@ -1,0 +1,22 @@
+{
+  "name": "job-traking",
+  "version": "1.0.0",
+  "description": "A modern, AI-powered job application tracking system with advanced features and animations.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "daisyui": "^5.5.14",
+    "tailwindcss": "^4.1.18"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "flowbite": "^4.0.1",
+    "three": "^0.182.0",
+    "zdog": "^1.1.3"
+  }
+}
