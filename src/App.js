@@ -31,6 +31,7 @@ import {
     fileToBase64,
     STATUS_MAP,
     ITEMS_PER_PAGE,
+    APPLICANT_NAME,
     BASE_SKILLS_CONTEXT,
     API_URL,
     OCR_SYSTEM_INSTRUCTION,
@@ -247,7 +248,7 @@ const App = () => {
         try {
             const documentParts = await processFilesForUpload(files);
             
-            const userQuery = `Analyze these ${files.length} documents (CVs, certificates, project docs, images) and synthesize a comprehensive professional profile summary (2-3 paragraphs) of Zefanya Williams's core professional skills, technical expertise, and career focus for job applications. Emphasize the intersection of Digital Marketing, Data Science, and Content Creation/Leadership. Output only the summarized context paragraph(s).`;
+            const userQuery = `Analyze these ${files.length} documents (CVs, certificates, project docs, images) and synthesize a comprehensive professional profile summary (2-3 paragraphs) of ${APPLICANT_NAME}'s core professional skills, technical expertise, and career focus for job applications. Emphasize the intersection of Digital Marketing, Data Science, and Content Creation/Leadership. Output only the summarized context paragraph(s).`;
             
             const payload = { contents: [{ role: "user", parts: [...documentParts, { text: userQuery }] }] };
 
@@ -364,7 +365,7 @@ User profile context: ${sanitizedContext}`;
 
         const actionType = EMAIL_ACTIONS[app.status] || EMAIL_ACTIONS.default;
 
-        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${sanitizedRole}" at "${sanitizedCompany}", applied on ${sanitizedDate}. The email should be ${actionType}. Use a professional, respectful tone. The body must include the name Zefanya Williams and gently remind the recruiter of one key skill relevant to the role, based on the user profile. Format the response as: Subject: [your subject line] \\n\\nDear [Recruiter/Hiring Team], \\n\\n[Email Body] \\n\\nSincerely, \\nZefanya Williams.
+        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${sanitizedRole}" at "${sanitizedCompany}", applied on ${sanitizedDate}. The email should be ${actionType}. Use a professional, respectful tone. The body must include the name ${APPLICANT_NAME} and gently remind the recruiter of one key skill relevant to the role, based on the user profile. Format the response as: Subject: [your subject line] \\n\\nDear [Recruiter/Hiring Team], \\n\\n[Email Body] \\n\\nSincerely, \\n${APPLICANT_NAME}.
 
 User profile context: ${sanitizedContext}`;
 
@@ -427,7 +428,7 @@ I remain very interested in this opportunity and would appreciate any updates yo
 Thank you for considering my application. I look forward to hearing from you.
 
 Sincerely,
-Zefanya Williams`;
+${APPLICANT_NAME}`;
             
             setEmailDraft({ 
                 isOpen: true, 

@@ -17,6 +17,9 @@ export const STATUS_MAP = {
 // Pagination Configuration
 export const ITEMS_PER_PAGE = 6;
 
+// User Information
+export const APPLICANT_NAME = 'Zefanya Williams';
+
 // Base Skills Context (default before user uploads files)
 export const BASE_SKILLS_CONTEXT = `Zefanya's key skills include: Digital Business, Data Science (Python, Tableau, Green Academy certification), Certified Content Creator, Certified Digital Marketing Practitioner, strong project coordination, and experience in video editing/reels content creation.`;
 
