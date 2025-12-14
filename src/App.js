@@ -85,6 +85,17 @@ const App = () => {
         setTimeout(() => setScanStatus(''), MESSAGE_DURATION);
     };
 
+    // Sanitize input to prevent prompt injection
+    const sanitizeInput = (input) => {
+        if (!input) return '';
+        // Remove potential prompt injection patterns while preserving normal text
+        return String(input)
+            .replace(/[<>]/g, '') // Remove angle brackets
+            .replace(/\n\s*\n/g, '\n') // Collapse multiple newlines
+            .trim()
+            .slice(0, 500); // Limit length to prevent overly long inputs
+    };
+
     // --- EXPORT/IMPORT HANDLERS ---
 
     const handleExport = () => {
@@ -275,10 +286,15 @@ const App = () => {
             return;
         }
 
-        try {
-            const userQuery = `Act as a career coach. Given the job role "${role}" at "${company}" and the user's profile context, generate a concise numbered list (3 to 5 points) of highly relevant action items or next steps. Focus on preparation, research, or tailoring skills specific to this job type. Do NOT use introductory or concluding sentences. Output only the numbered list items separated by newlines.
+        // Sanitize inputs
+        const sanitizedRole = sanitizeInput(role);
+        const sanitizedCompany = sanitizeInput(company);
+        const sanitizedContext = sanitizeInput(userProfileContext);
 
-User profile context: ${userProfileContext}`;
+        try {
+            const userQuery = `Act as a career coach. Given the job role "${sanitizedRole}" at "${sanitizedCompany}" and the user's profile context, generate a concise numbered list (3 to 5 points) of highly relevant action items or next steps. Focus on preparation, research, or tailoring skills specific to this job type. Do NOT use introductory or concluding sentences. Output only the numbered list items separated by newlines.
+
+User profile context: ${sanitizedContext}`;
             
             const payload = { contents: [{ parts: [{ text: userQuery }] }] };
 
@@ -303,11 +319,11 @@ User profile context: ${userProfileContext}`;
             showMessage('Failed to generate action plan. Using fallback steps.', 'error');
             
             // Fallback action items
-            const fallbackNotes = `1. Research ${company}'s recent projects, products, and company culture
-2. Review the job description for ${role} and identify key required skills
+            const fallbackNotes = `1. Research ${sanitizedCompany}'s recent projects, products, and company culture
+2. Review the job description for ${sanitizedRole} and identify key required skills
 3. Prepare specific examples demonstrating relevant experience
-4. Tailor your CV to highlight skills matching this ${role} position
-5. Connect with current employees at ${company} on LinkedIn for insights`;
+4. Tailor your CV to highlight skills matching this ${sanitizedRole} position
+5. Connect with current employees at ${sanitizedCompany} on LinkedIn for insights`;
             
             setFormData(prev => ({ ...prev, notes: fallbackNotes }));
         } finally {
@@ -340,11 +356,17 @@ User profile context: ${userProfileContext}`;
             return;
         }
 
+        // Sanitize inputs
+        const sanitizedRole = sanitizeInput(app.role);
+        const sanitizedCompany = sanitizeInput(app.company);
+        const sanitizedDate = sanitizeInput(app.appliedDate);
+        const sanitizedContext = sanitizeInput(userProfileContext);
+
         const actionType = EMAIL_ACTIONS[app.status] || EMAIL_ACTIONS.default;
 
-        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${app.role}" at "${app.company}", applied on ${app.appliedDate}. The email should be ${actionType}. Use a professional, respectful tone. The body must include the name Zefanya Williams and gently remind the recruiter of one key skill relevant to the role, based on the user profile. Format the response as: Subject: [your subject line] \\n\\nDear [Recruiter/Hiring Team], \\n\\n[Email Body] \\n\\nSincerely, \\nZefanya Williams.
+        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${sanitizedRole}" at "${sanitizedCompany}", applied on ${sanitizedDate}. The email should be ${actionType}. Use a professional, respectful tone. The body must include the name Zefanya Williams and gently remind the recruiter of one key skill relevant to the role, based on the user profile. Format the response as: Subject: [your subject line] \\n\\nDear [Recruiter/Hiring Team], \\n\\n[Email Body] \\n\\nSincerely, \\nZefanya Williams.
 
-User profile context: ${userProfileContext}`;
+User profile context: ${sanitizedContext}`;
 
         try {
             const payload = { contents: [{ parts: [{ text: userQuery }] }] };
@@ -378,22 +400,27 @@ User profile context: ${userProfileContext}`;
                 }
             }
             
-            setEmailDraft({ 
-                isOpen: true, 
-                subject: subject || 'Follow-up Application Status', 
-                body: bodyLines.join('\n\n') || generatedEmail 
-            });
-            showMessage(`Email draft generated for ${app.role}!`, 'success');
+            // Use parsed structure if available, otherwise use a cleaner fallback message
+            if (bodyLines.length > 0) {
+                setEmailDraft({ 
+                    isOpen: true, 
+                    subject: subject || 'Follow-up Application Status', 
+                    body: bodyLines.join('\n\n')
+                });
+            } else {
+                throw new Error('Unable to parse email structure from AI response');
+            }
+            showMessage(`Email draft generated for ${sanitizedRole}!`, 'success');
 
         } catch (error) {
             console.error("Gemini Email Generation Error:", error);
             showMessage('Failed to generate email. Using fallback template.', 'error');
             
             // Fallback email template
-            const fallbackSubject = `Follow-up on ${app.role} Application`;
+            const fallbackSubject = `Follow-up on ${sanitizedRole} Application`;
             const fallbackBody = `Dear Hiring Team,
 
-I hope this message finds you well. I am writing to follow up on my application for the ${app.role} position at ${app.company}, which I submitted on ${app.appliedDate}.
+I hope this message finds you well. I am writing to follow up on my application for the ${sanitizedRole} position at ${sanitizedCompany}, which I submitted on ${sanitizedDate}.
 
 I remain very interested in this opportunity and would appreciate any updates you might have regarding my application status. I believe my background and skills align well with the requirements of this role.
 
@@ -423,9 +450,14 @@ Zefanya Williams`;
             return;
         }
 
-        const prompt = `Based on the job role "${app.role}" at "${app.company}" and the user's profile context, generate two lists separated by '---': (1) Top 3–4 potential interview questions (numbered), (2) Top 3–4 key highlights to mention (bullet points). Respond only with the two lists; no extra commentary.
+        // Sanitize inputs
+        const sanitizedRole = sanitizeInput(app.role);
+        const sanitizedCompany = sanitizeInput(app.company);
+        const sanitizedContext = sanitizeInput(userProfileContext);
 
-User profile context: ${userProfileContext}`;
+        const prompt = `Based on the job role "${sanitizedRole}" at "${sanitizedCompany}" and the user's profile context, generate two lists separated by '---': (1) Top 3–4 potential interview questions (numbered), (2) Top 3–4 key highlights to mention (bullet points). Respond only with the two lists; no extra commentary.
+
+User profile context: ${sanitizedContext}`;
 
         try {
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
@@ -471,15 +503,15 @@ User profile context: ${userProfileContext}`;
             
             // Fallback strategy content
             const fallbackQuestions = [
-                `Can you describe your experience relevant to the ${app.role} position?`,
-                `What interests you most about working at ${app.company}?`,
+                `Can you describe your experience relevant to the ${sanitizedRole} position?`,
+                `What interests you most about working at ${sanitizedCompany}?`,
                 `Tell me about a challenging project you worked on and how you handled it.`,
                 `Where do you see yourself in 3-5 years in this field?`
             ];
             
             const fallbackHighlights = [
-                `Emphasize technical skills and hands-on experience relevant to ${app.role}`,
-                `Demonstrate knowledge of ${app.company}'s products/services and industry position`,
+                `Emphasize technical skills and hands-on experience relevant to ${sanitizedRole}`,
+                `Demonstrate knowledge of ${sanitizedCompany}'s products/services and industry position`,
                 `Highlight problem-solving abilities and specific project outcomes`,
                 `Show enthusiasm for continuous learning and professional development`
             ];
@@ -505,9 +537,14 @@ User profile context: ${userProfileContext}`;
             return;
         }
 
-        const prompt = `Act as an ATS/HR analyst. Analyze the job role "${app.role}" at "${app.company}" against the user's profile context. Provide two sections separated by '---': (1) Strongest Matches – a bullet list of 3 key skills or experiences that match the role, and (2) Areas for CV Improvement – a bullet list of 3 things to adjust or emphasize in the CV. Respond only with the two lists.
+        // Sanitize inputs
+        const sanitizedRole = sanitizeInput(app.role);
+        const sanitizedCompany = sanitizeInput(app.company);
+        const sanitizedContext = sanitizeInput(userProfileContext);
 
-User profile context: ${userProfileContext}`;
+        const prompt = `Act as an ATS/HR analyst. Analyze the job role "${sanitizedRole}" at "${sanitizedCompany}" against the user's profile context. Provide two sections separated by '---': (1) Strongest Matches – a bullet list of 3 key skills or experiences that match the role, and (2) Areas for CV Improvement – a bullet list of 3 things to adjust or emphasize in the CV. Respond only with the two lists.
+
+User profile context: ${sanitizedContext}`;
 
         try {
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
@@ -553,15 +590,15 @@ User profile context: ${userProfileContext}`;
             
             // Fallback CV check content
             const fallbackMatches = [
-                `Relevant technical skills applicable to ${app.role} position`,
-                `Professional experience that aligns with ${app.company}'s industry`,
+                `Relevant technical skills applicable to ${sanitizedRole} position`,
+                `Professional experience that aligns with ${sanitizedCompany}'s industry`,
                 `Educational background and certifications supporting this role`
             ];
             
             const fallbackImprovements = [
                 `Quantify specific achievements with measurable results (e.g., percentages, revenue impact)`,
-                `Emphasize keywords from the ${app.role} job description more prominently`,
-                `Add specific examples of projects or initiatives relevant to ${app.company}'s focus area`
+                `Emphasize keywords from the ${sanitizedRole} job description more prominently`,
+                `Add specific examples of projects or initiatives relevant to ${sanitizedCompany}'s focus area`
             ];
             
             setCvCheck({
