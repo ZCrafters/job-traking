@@ -268,58 +268,98 @@ const App = () => {
         setIsGenerating(true);
         showMessage('Generating tailored action plan...', 'warning');
 
+        // Input validation
+        if (!role || !company) {
+            showMessage('Missing required fields: role and company are required to generate next steps.', 'error');
+            setIsGenerating(false);
+            return;
+        }
+
         try {
-            const userQuery = `Act as a career coach. Given the job role "${role}" at "${company}", and considering the user's current profile context: "${userProfileContext}", generate a concise, numbered list (3 to 5 points) of highly relevant action items or next steps. Focus on preparation, research, or tailoring skills specific to this job type. Do NOT use introductory or concluding sentences. Only output the numbered list items separated by newlines.`;
+            const userQuery = `Act as a career coach. Given the job role "${role}" at "${company}" and the user's profile context, generate a concise numbered list (3 to 5 points) of highly relevant action items or next steps. Focus on preparation, research, or tailoring skills specific to this job type. Do NOT use introductory or concluding sentences. Output only the numbered list items separated by newlines.
+
+User profile context: ${userProfileContext}`;
             
             const payload = { contents: [{ parts: [{ text: userQuery }] }] };
 
             const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            
             const result = await response.json();
-            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || '1. Failed to generate steps. 2. Manual input required.';
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!generatedText || generatedText.trim().length === 0) {
+                throw new Error('API returned empty response');
+            }
             
             setFormData(prev => ({ ...prev, notes: generatedText.trim() }));
             showMessage('Action plan generated successfully!', 'success');
 
         } catch (error) {
             console.error("Gemini Generation Error:", error);
-            showMessage('Failed to generate action plan.', 'error');
+            showMessage('Failed to generate action plan. Using fallback steps.', 'error');
+            
+            // Fallback action items
+            const fallbackNotes = `1. Research ${company}'s recent projects, products, and company culture
+2. Review the job description for ${role} and identify key required skills
+3. Prepare specific examples demonstrating relevant experience
+4. Tailor your CV to highlight skills matching this ${role} position
+5. Connect with current employees at ${company} on LinkedIn for insights`;
+            
+            setFormData(prev => ({ ...prev, notes: fallbackNotes }));
         } finally {
             setIsGenerating(false);
         }
     };
 
     // --- GEMINI: FOLLOW-UP EMAIL DRAFTER ---
+    const EMAIL_ACTIONS = {
+        INTERVIEW: 'a polite thank-you and results follow-up after an interview',
+        IN_REVIEW: 'a polite general application status check (after waiting 10–14 days)',
+        SUBMITTED: 'a polite general application status check (after waiting 10–14 days)',
+        OFFER: 'a request for offer clarification and confirmation of the decision deadline',
+        default: 'a polite general follow-up'
+    };
+
     const handleGenerateEmail = async (app) => {
         setIsEmailLoading(app.id);
         
-        let actionType;
-        if (app.status === 'INTERVIEW') {
-            actionType = 'a polite thank-you and results follow-up after an interview';
-        } else if (app.status === 'IN_REVIEW' || app.status === 'SUBMITTED') {
-             actionType = 'a polite general application status check (after waiting 10-14 days)';
-        } else if (app.status === 'OFFER') {
-             actionType = 'a request for offer clarification and confirmation of the decision deadline';
-        } else {
-             actionType = 'a polite general follow-up';
+        // Input validation
+        if (!app.role || !app.company) {
+            showMessage('Missing required fields: role and company are required to generate an email.', 'error');
+            setIsEmailLoading(null);
+            return;
+        }
+        
+        if (!app.appliedDate) {
+            showMessage('Missing applied date. Please add the application date before generating an email.', 'error');
+            setIsEmailLoading(null);
+            return;
         }
 
-        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${app.role}" at "${app.company}", applied on ${app.appliedDate}. The email should be a ${actionType}. Use a professional, respectful tone. The body must include the name Zefanya Williams and gently remind the recruiter of one key skill relevant to the role, based on this profile: ${userProfileContext}.
-        
-        Output format:
-        Subject: [Your Subject Line]
-        
-        Dear [Recruiter/Hiring Team],
-        
-        [Email Body]
-        
-        Sincerely,
-        Zefanya Williams`;
+        const actionType = EMAIL_ACTIONS[app.status] || EMAIL_ACTIONS.default;
+
+        const userQuery = `Act as a professional applicant. Draft a formal, concise follow-up email in ENGLISH for the job application: "${app.role}" at "${app.company}", applied on ${app.appliedDate}. The email should be ${actionType}. Use a professional, respectful tone. The body must include the name Zefanya Williams and gently remind the recruiter of one key skill relevant to the role, based on the user profile. Format the response as: Subject: [your subject line] \\n\\nDear [Recruiter/Hiring Team], \\n\\n[Email Body] \\n\\nSincerely, \\nZefanya Williams.
+
+User profile context: ${userProfileContext}`;
 
         try {
             const payload = { contents: [{ parts: [{ text: userQuery }] }] };
             const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            
             const result = await response.json();
-            const generatedEmail = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Subject: AI Draft Failed\n\nDear Recruiter,\n\nI was unable to generate the draft. Please copy the details manually.\n\nSincerely,\nZefanya Williams';
+            const generatedEmail = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!generatedEmail || generatedEmail.trim().length === 0) {
+                throw new Error('API returned empty response');
+            }
             
             const lines = generatedEmail.split('\n').map(line => line.trim()).filter(line => line.length > 0);
             
@@ -338,12 +378,35 @@ const App = () => {
                 }
             }
             
-            setEmailDraft({ isOpen: true, subject: subject || 'Follow-up Application Status', body: bodyLines.join('\n\n') });
+            setEmailDraft({ 
+                isOpen: true, 
+                subject: subject || 'Follow-up Application Status', 
+                body: bodyLines.join('\n\n') || generatedEmail 
+            });
             showMessage(`Email draft generated for ${app.role}!`, 'success');
 
         } catch (error) {
             console.error("Gemini Email Generation Error:", error);
-            showMessage('Failed to generate email.', 'error');
+            showMessage('Failed to generate email. Using fallback template.', 'error');
+            
+            // Fallback email template
+            const fallbackSubject = `Follow-up on ${app.role} Application`;
+            const fallbackBody = `Dear Hiring Team,
+
+I hope this message finds you well. I am writing to follow up on my application for the ${app.role} position at ${app.company}, which I submitted on ${app.appliedDate}.
+
+I remain very interested in this opportunity and would appreciate any updates you might have regarding my application status. I believe my background and skills align well with the requirements of this role.
+
+Thank you for considering my application. I look forward to hearing from you.
+
+Sincerely,
+Zefanya Williams`;
+            
+            setEmailDraft({ 
+                isOpen: true, 
+                subject: fallbackSubject, 
+                body: fallbackBody 
+            });
         } finally {
             setIsEmailLoading(null);
         }
@@ -353,18 +416,32 @@ const App = () => {
     const handleGenerateStrategy = async (app) => {
         setIsStrategyLoading(app.id);
 
-        const prompt = `Based on the job role "${app.role}" at "${app.company}", and considering the user's current profile context: "${userProfileContext}", generate two lists:
-        1. Top 3-4 Potential Interview Questions: List the most likely technical or behavioral questions for this specific role.
-        2. Top 3-4 Key Highlights to Mention: List the key selling points from the user's background that are most relevant to answering those questions and securing this specific job.
+        // Input validation
+        if (!app.role || !app.company) {
+            showMessage('Missing required fields: role and company are required to generate interview strategy.', 'error');
+            setIsStrategyLoading(null);
+            return;
+        }
 
-        Format the output clearly separating the two sections with '---'. Use numbered lists for questions and bullet points for highlights.`;
+        const prompt = `Based on the job role "${app.role}" at "${app.company}" and the user's profile context, generate two lists separated by '---': (1) Top 3–4 potential interview questions (numbered), (2) Top 3–4 key highlights to mention (bullet points). Respond only with the two lists; no extra commentary.
+
+User profile context: ${userProfileContext}`;
 
         try {
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
             const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            
             const result = await response.json();
-            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Failed to generate strategy.';
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!generatedText || generatedText.trim().length === 0) {
+                throw new Error('API returned empty response');
+            }
 
             const [questionsSection, highlightsSection] = generatedText.split('---').map(s => s.trim());
 
@@ -373,17 +450,45 @@ const App = () => {
                 return section.split('\n').map(line => line.replace(/^\s*[\d\.\*-]+\s*/, '').trim()).filter(line => line.length > 0);
             };
 
+            const questions = extractList(questionsSection);
+            const highlights = extractList(highlightsSection);
+
+            if (questions.length === 0 || highlights.length === 0) {
+                throw new Error('Unable to parse AI response properly');
+            }
+
             setStrategyDraft({
                 isOpen: true,
-                questions: extractList(questionsSection.includes('Questions') ? questionsSection : '1. Analysis of a past project'),
-                highlights: extractList(highlightsSection || '• Highlight Digital Marketing certification'),
+                questions: questions,
+                highlights: highlights,
             });
 
             showMessage('Interview strategy generated!', 'success');
 
         } catch (error) {
             console.error("Strategy Generation Error:", error);
-            showMessage('Failed to generate strategy.', 'error');
+            showMessage('Failed to generate strategy. Using fallback content.', 'error');
+            
+            // Fallback strategy content
+            const fallbackQuestions = [
+                `Can you describe your experience relevant to the ${app.role} position?`,
+                `What interests you most about working at ${app.company}?`,
+                `Tell me about a challenging project you worked on and how you handled it.`,
+                `Where do you see yourself in 3-5 years in this field?`
+            ];
+            
+            const fallbackHighlights = [
+                `Emphasize technical skills and hands-on experience relevant to ${app.role}`,
+                `Demonstrate knowledge of ${app.company}'s products/services and industry position`,
+                `Highlight problem-solving abilities and specific project outcomes`,
+                `Show enthusiasm for continuous learning and professional development`
+            ];
+            
+            setStrategyDraft({
+                isOpen: true,
+                questions: fallbackQuestions,
+                highlights: fallbackHighlights,
+            });
         } finally {
             setIsStrategyLoading(null);
         }
@@ -393,18 +498,32 @@ const App = () => {
     const handleCVCheck = async (app) => {
         setIsCVCheckLoading(app.id);
 
-        const prompt = `Act as an ATS/HR Analyst. Analyze the Job Role "${app.role}" at "${app.company}" against the user's current profile context: "${userProfileContext}". Provide feedback in two clear sections:
-        1. Strongest Matches: Identify 3 key skills, experiences, or certifications from the profile that are highly relevant to this specific role.
-        2. Areas for CV Improvement: Identify 3 areas where the existing CV/profile summary should be adjusted, emphasized, or quantified (e.g., specific metrics needed, skills to move up) to better align with the job description.
+        // Input validation
+        if (!app.role || !app.company) {
+            showMessage('Missing required fields: role and company are required to generate CV check.', 'error');
+            setIsCVCheckLoading(null);
+            return;
+        }
 
-        Format the output clearly separating the two sections with '---'. Use bullet points for both lists.`;
+        const prompt = `Act as an ATS/HR analyst. Analyze the job role "${app.role}" at "${app.company}" against the user's profile context. Provide two sections separated by '---': (1) Strongest Matches – a bullet list of 3 key skills or experiences that match the role, and (2) Areas for CV Improvement – a bullet list of 3 things to adjust or emphasize in the CV. Respond only with the two lists.
+
+User profile context: ${userProfileContext}`;
 
         try {
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
             const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            
             const result = await response.json();
-            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Failed to generate CV check.';
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!generatedText || generatedText.trim().length === 0) {
+                throw new Error('API returned empty response');
+            }
 
             const [matchesSection, improvementsSection] = generatedText.split('---').map(s => s.trim());
 
@@ -413,17 +532,43 @@ const App = () => {
                 return section.split('\n').map(line => line.replace(/^\s*[\d\.\*-]+\s*/, '').trim()).filter(line => line.length > 0);
             };
 
+            const matches = extractList(matchesSection);
+            const improvements = extractList(improvementsSection);
+
+            if (matches.length === 0 || improvements.length === 0) {
+                throw new Error('Unable to parse AI response properly');
+            }
+
             setCvCheck({
                 isOpen: true,
-                matches: extractList(matchesSection.includes('Matches') ? matchesSection : '• Data Science background is a strong match.'),
-                improvements: extractList(improvementsSection || '1. Quantify achievements in Content Creation.'),
+                matches: matches,
+                improvements: improvements,
             });
 
             showMessage('CV check results generated!', 'success');
 
         } catch (error) {
             console.error("CV Check Generation Error:", error);
-            showMessage('Failed to generate CV check.', 'error');
+            showMessage('Failed to generate CV check. Using fallback analysis.', 'error');
+            
+            // Fallback CV check content
+            const fallbackMatches = [
+                `Relevant technical skills applicable to ${app.role} position`,
+                `Professional experience that aligns with ${app.company}'s industry`,
+                `Educational background and certifications supporting this role`
+            ];
+            
+            const fallbackImprovements = [
+                `Quantify specific achievements with measurable results (e.g., percentages, revenue impact)`,
+                `Emphasize keywords from the ${app.role} job description more prominently`,
+                `Add specific examples of projects or initiatives relevant to ${app.company}'s focus area`
+            ];
+            
+            setCvCheck({
+                isOpen: true,
+                matches: fallbackMatches,
+                improvements: fallbackImprovements,
+            });
         } finally {
             setIsCVCheckLoading(null);
         }
