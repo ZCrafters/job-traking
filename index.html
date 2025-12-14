@@ -1326,16 +1326,26 @@ const App = () => {
 
                 {/* FILTER AND ACTION BAR */}
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0 sm:space-x-4">
-                    <input
-                        type="text"
-                        placeholder="Cari berdasarkan Posisi atau Perusahaan..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                            setSearchTerm(e.target.value);
-                            setCurrentPage(1); // Reset halaman saat mencari
-                        }}
-                        className="w-full sm:w-1/2 p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    />
+                    <div className="w-full sm:w-1/2">
+                        <label htmlFor="searchInput" className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Search Applications
+                        </label>
+                        <input
+                            id="searchInput"
+                            type="text"
+                            placeholder="Search by job role or company name..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setCurrentPage(1); // Reset to first page when searching
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
+                            aria-describedby="searchHelp"
+                        />
+                        <p id="searchHelp" className="text-xs text-gray-500 mt-1">
+                            Filter by job role or company name
+                        </p>
+                    </div>
                     <div className="flex space-x-3">
                          {/* Import/Export buttons moved here for better organization */}
                          <button onClick={handleExport} className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md hover:bg-green-700 transition duration-150 flex items-center text-sm">
