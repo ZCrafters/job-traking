@@ -9,4 +9,5 @@ export * from './csvUtils.js';
 export * from './kpiUtils.js';
 export * from './fileUtils.js';
 export * from './animationUtils.js';
+export * from './inputUtils.js';
 export * from './config.js';

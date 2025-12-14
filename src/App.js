@@ -35,9 +35,11 @@ import {
     downloadCSV,
     processFilesForUpload,
     fileToBase64,
+    sanitizeInput,
     STATUS_MAP,
     ITEMS_PER_PAGE,
     APPLICANT_NAME,
+    EMAIL_ACTIONS,
     BASE_SKILLS_CONTEXT,
     API_URL,
     OCR_SYSTEM_INSTRUCTION,
@@ -93,17 +95,6 @@ const App = () => {
         console.log(`[Message: ${type.toUpperCase()}] ${message}`);
         setScanStatus(message);
         setTimeout(() => setScanStatus(''), MESSAGE_DURATION);
-    };
-
-    // Sanitize input to prevent prompt injection
-    const sanitizeInput = (input) => {
-        if (!input) return '';
-        // Remove potential prompt injection patterns while preserving normal text
-        return String(input)
-            .replace(/[<>]/g, '') // Remove angle brackets
-            .replace(/\n\s*\n/g, '\n') // Collapse multiple newlines
-            .trim()
-            .slice(0, 500); // Limit length to prevent overly long inputs
     };
 
     // --- EXPORT/IMPORT HANDLERS ---
@@ -346,14 +337,6 @@ User profile context: ${sanitizedContext}`;
     };
 
     // --- GEMINI: FOLLOW-UP EMAIL DRAFTER ---
-    const EMAIL_ACTIONS = {
-        INTERVIEW: 'a polite thank-you and results follow-up after an interview',
-        IN_REVIEW: 'a polite general application status check (after waiting 10–14 days)',
-        SUBMITTED: 'a polite general application status check (after waiting 10–14 days)',
-        OFFER: 'a request for offer clarification and confirmation of the decision deadline',
-        default: 'a polite general follow-up'
-    };
-
     const handleGenerateEmail = async (app) => {
         setIsEmailLoading(app.id);
         
