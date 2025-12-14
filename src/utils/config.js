@@ -17,6 +17,18 @@ export const STATUS_MAP = {
 // Pagination Configuration
 export const ITEMS_PER_PAGE = 6;
 
+// User Information
+export const APPLICANT_NAME = 'Zefanya Williams';
+
+// Email Actions Mapping (for AI prompt generation)
+export const EMAIL_ACTIONS = {
+    INTERVIEW: 'a polite thank-you and results follow-up after an interview',
+    IN_REVIEW: 'a polite general application status check (after waiting 10–14 days)',
+    SUBMITTED: 'a polite general application status check (after waiting 10–14 days)',
+    OFFER: 'a request for offer clarification and confirmation of the decision deadline',
+    default: 'a polite general follow-up'
+};
+
 // Base Skills Context (default before user uploads files)
 export const BASE_SKILLS_CONTEXT = `Zefanya's key skills include: Digital Business, Data Science (Python, Tableau, Green Academy certification), Certified Content Creator, Certified Digital Marketing Practitioner, strong project coordination, and experience in video editing/reels content creation.`;
 
