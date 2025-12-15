@@ -33,7 +33,8 @@ export const EMAIL_ACTIONS = {
 export const BASE_SKILLS_CONTEXT = `Zefanya's key skills include: Digital Business, Data Science (Python, Tableau, Green Academy certification), Certified Content Creator, Certified Digital Marketing Practitioner, strong project coordination, and experience in video editing/reels content creation.`;
 
 // API Configuration
-export const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+export const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
 
 // OCR System Instruction
 export const OCR_SYSTEM_INSTRUCTION = { 
