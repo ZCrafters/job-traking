@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
@@ -7,17 +7,10 @@ import {
     getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, getDoc, addDoc, setLogLevel, writeBatch, getDocs, Timestamp
 } from 'firebase/firestore';
 
-// Component Imports
+// Core Component Imports (needed immediately)
 import {
     StatusBadge,
-    SummaryCard,
     StatusDistributionChart,
-    ApplicationCard,
-    ApplicationModal,
-    EmailDraftModal,
-    StrategyModal,
-    CVCheckModal,
-    ProfileAnalysisModal,
     AppShell,
     Sidebar,
     Topbar,
@@ -25,6 +18,13 @@ import {
     ChartCard,
     ApplicationsTable
 } from './components/index.js';
+
+// Lazy load modal components (not needed on initial render)
+const ApplicationModal = lazy(() => import('./components/ApplicationModal.js'));
+const EmailDraftModal = lazy(() => import('./components/EmailDraftModal.js'));
+const StrategyModal = lazy(() => import('./components/StrategyModal.js'));
+const CVCheckModal = lazy(() => import('./components/CVCheckModal.js'));
+const ProfileAnalysisModal = lazy(() => import('./components/ProfileAnalysisModal.js'));
 
 // Utility Imports
 import {
@@ -91,25 +91,25 @@ const App = () => {
 
     // --- UTILITY HANDLERS ---
     
-    const showMessage = (message, type = 'success') => {
+    const showMessage = useCallback((message, type = 'success') => {
         console.log(`[Message: ${type.toUpperCase()}] ${message}`);
         setScanStatus(message);
         setTimeout(() => setScanStatus(''), MESSAGE_DURATION);
-    };
+    }, []);
 
     // --- EXPORT/IMPORT HANDLERS ---
 
-    const handleExport = () => {
+    const handleExport = useCallback(() => {
         const csv = convertToCSV(applications);
         downloadCSV(csv, `zefanya_applications_${new Date().toISOString().split('T')[0]}.csv`);
         showMessage('Data exported successfully!', 'success');
-    };
+    }, [applications, showMessage]);
 
-    const handleImportClick = () => {
+    const handleImportClick = useCallback(() => {
         document.getElementById('importFile').click();
-    };
+    }, []);
 
-    const handleImport = (e) => {
+    const handleImport = useCallback((e) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -147,7 +147,7 @@ const App = () => {
             }
         };
         reader.readAsText(file);
-    };
+    }, [userId, dbInstance, showMessage]);
 
     // --- FIREBASE INITIALIZATION & AUTH ---
     useEffect(() => {
@@ -610,7 +610,7 @@ User profile context: ${sanitizedContext}`;
 
     // --- CRUD HANDLERS ---
     
-    const handleSave = async (data) => {
+    const handleSave = useCallback(async (data) => {
         if (!userId || !dbInstance) return;
         const path = `artifacts/${appId}/users/${userId}/saas_application_tracker`;
         
@@ -629,46 +629,56 @@ User profile context: ${sanitizedContext}`;
             console.error("Error saving document: ", e);
             showMessage('Failed to save application.', 'error');
         }
-    };
+    }, [userId, dbInstance, showMessage]);
 
-    const handleDelete = async (id) => {
+    const handleDelete = useCallback(async (id) => {
         if (!userId || !dbInstance) return;
         if (window.confirm("Are you sure you want to delete this application?")) {
             const path = `artifacts/${appId}/users/${userId}/saas_application_tracker`;
             try {
                 await deleteDoc(doc(dbInstance, path, id));
                 showMessage('Application successfully deleted!', 'success');
-                setCurrentPage(prev => Math.min(prev, Math.ceil((applications.length - 1) / ITEMS_PER_PAGE) || 1));
+                // Reset to page 1 after delete to avoid potential empty pages
+                setCurrentPage(1);
             } catch (e) {
                 console.error("Error deleting document: ", e);
                 showMessage('Failed to delete application.', 'error');
             }
         }
-    };
+    }, [userId, dbInstance, showMessage]);
     
     // --- MODAL CONTROL ---
 
-    const handleAddClick = () => {
+    const handleAddClick = useCallback(() => {
         setModalData({
             role: '', company: '', location: '', appliedDate: new Date().toISOString().split('T')[0], status: 'TO_APPLY', link: '', notes: '', source: 'Manual Input'
         });
         setScanStatus('');
         setIsScanning(false);
         setIsModalOpen(true);
-    };
+    }, []);
 
-    const handleEdit = (app) => {
+    const handleEdit = useCallback((app) => {
         setModalData({ ...app, appliedDate: app.appliedDate || new Date().toISOString().split('T')[0] });
         setScanStatus('');
         setIsScanning(false);
         setIsModalOpen(true);
-    };
+    }, []);
 
     // --- AI SCAN LOGIC ---
     
-    const handleImageScanClick = () => {
+    const handleImageScanClick = useCallback(() => {
         document.getElementById('imageFile').click();
-    };
+    }, []);
+    
+    const handleSearchChange = useCallback((value) => {
+        setSearchTerm(value);
+        setCurrentPage(1);
+    }, []);
+    
+    const handleProfileClick = useCallback(() => {
+        setIsProfileModalOpen(true);
+    }, []);
 
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
@@ -730,22 +740,36 @@ User profile context: ${sanitizedContext}`;
         }
     };
 
-    // --- UI Calculations ---
+    // --- UI Calculations (Memoized for Performance) ---
 
-    // Calculate KPIs and status counts
-    const { successRate, totalActive, timeSinceLastAction, totalOffers } = calculateKPIs(applications);
-    const interviewCount = applications.filter(a => a.status === 'INTERVIEW').length;
-
-    // --- Pagination Logic ---
-    const filteredApps = applications.filter(app => 
-        app.role.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        app.company.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Calculate KPIs and status counts - only recalculate when applications change
+    const kpis = useMemo(() => {
+        const kpiData = calculateKPIs(applications);
+        const interviewCount = applications.filter(a => a.status === 'INTERVIEW').length;
+        return { ...kpiData, interviewCount };
+    }, [applications]);
     
-    const totalPages = Math.ceil(filteredApps.length / ITEMS_PER_PAGE);
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    const appsToRender = filteredApps.slice(startIndex, endIndex);
+    const { successRate, totalActive, timeSinceLastAction, totalOffers, interviewCount } = kpis;
+
+    // --- Pagination Logic (Memoized) ---
+    const filteredApps = useMemo(() => {
+        if (!searchTerm) return applications;
+        const lowerSearch = searchTerm.toLowerCase();
+        return applications.filter(app => 
+            app.role.toLowerCase().includes(lowerSearch) || 
+            app.company.toLowerCase().includes(lowerSearch)
+        );
+    }, [applications, searchTerm]);
+    
+    const paginationData = useMemo(() => {
+        const totalPages = Math.ceil(filteredApps.length / ITEMS_PER_PAGE);
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        const appsToRender = filteredApps.slice(startIndex, endIndex);
+        return { totalPages, startIndex, endIndex, appsToRender };
+    }, [filteredApps, currentPage]);
+    
+    const { totalPages, startIndex, endIndex, appsToRender } = paginationData;
 
     if (!isAuthReady) {
         return (
@@ -767,13 +791,10 @@ User profile context: ${sanitizedContext}`;
             topbar={
                 <Topbar
                     searchTerm={searchTerm}
-                    onSearchChange={(value) => {
-                        setSearchTerm(value);
-                        setCurrentPage(1);
-                    }}
+                    onSearchChange={handleSearchChange}
                     onAddClick={handleAddClick}
                     onScanClick={handleImageScanClick}
-                    onProfileClick={() => setIsProfileModalOpen(true)}
+                    onProfileClick={handleProfileClick}
                     onExport={handleExport}
                     onImport={handleImportClick}
                 />
@@ -923,44 +944,46 @@ User profile context: ${sanitizedContext}`;
                 )}
             </div>
 
-            {/* Modals */}
-            <ApplicationModal 
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSave={handleSave}
-                initialData={modalData}
-                isScanning={isScanning}
-                scanStatus={scanStatus}
-                handleImageUpload={handleImageUpload}
-                onGenerateNotes={handleGenerateNotes}
-                isGenerating={isGenerating}
-            />
-            
-            <EmailDraftModal 
-                isOpen={emailDraft.isOpen}
-                onClose={() => setEmailDraft({ isOpen: false, subject: '', body: '' })}
-                draft={emailDraft}
-            />
+            {/* Modals - Lazy loaded with Suspense */}
+            <Suspense fallback={null}>
+                <ApplicationModal 
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSave={handleSave}
+                    initialData={modalData}
+                    isScanning={isScanning}
+                    scanStatus={scanStatus}
+                    handleImageUpload={handleImageUpload}
+                    onGenerateNotes={handleGenerateNotes}
+                    isGenerating={isGenerating}
+                />
+                
+                <EmailDraftModal 
+                    isOpen={emailDraft.isOpen}
+                    onClose={() => setEmailDraft({ isOpen: false, subject: '', body: '' })}
+                    draft={emailDraft}
+                />
 
-            <StrategyModal
-                isOpen={strategyDraft.isOpen}
-                onClose={() => setStrategyDraft({ isOpen: false, questions: [], highlights: [] })}
-                strategy={strategyDraft}
-            />
-            
-            <CVCheckModal
-                isOpen={cvCheck.isOpen}
-                onClose={() => setCvCheck({ isOpen: false, matches: [], improvements: [] })}
-                checks={cvCheck}
-            />
+                <StrategyModal
+                    isOpen={strategyDraft.isOpen}
+                    onClose={() => setStrategyDraft({ isOpen: false, questions: [], highlights: [] })}
+                    strategy={strategyDraft}
+                />
+                
+                <CVCheckModal
+                    isOpen={cvCheck.isOpen}
+                    onClose={() => setCvCheck({ isOpen: false, matches: [], improvements: [] })}
+                    checks={cvCheck}
+                />
 
-            <ProfileAnalysisModal
-                isOpen={isProfileModalOpen}
-                onClose={() => setIsProfileModalOpen(false)}
-                onAnalyze={handleAnalyzeProfile}
-                isAnalyzing={isAnalyzingProfile}
-                currentContext={userProfileContext}
-            />
+                <ProfileAnalysisModal
+                    isOpen={isProfileModalOpen}
+                    onClose={() => setIsProfileModalOpen(false)}
+                    onAnalyze={handleAnalyzeProfile}
+                    isAnalyzing={isAnalyzingProfile}
+                    currentContext={userProfileContext}
+                />
+            </Suspense>
         </AppShell>
     );
 };

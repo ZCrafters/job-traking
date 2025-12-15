@@ -21,6 +21,15 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'react-vendor': ['react', 'react-dom'],
+          'ui-vendor': ['@headlessui/react', '@heroicons/react'],
+        },
+      },
+    },
   },
   server: {
     port: 3000,

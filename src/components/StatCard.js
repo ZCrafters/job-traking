@@ -4,7 +4,7 @@ import React from 'react';
  * StatCard Component
  * Displays a KPI metric with icon, number, label, and helper text
  */
-const StatCard = ({ icon, label, value, helperText, colorClass = 'text-indigo-600' }) => {
+const StatCard = React.memo(({ icon, label, value, helperText, colorClass = 'text-indigo-600' }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
@@ -25,6 +25,8 @@ const StatCard = ({ icon, label, value, helperText, colorClass = 'text-indigo-60
             </div>
         </div>
     );
-};
+});
+
+StatCard.displayName = 'StatCard';
 
 export default StatCard;

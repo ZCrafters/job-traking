@@ -5,7 +5,7 @@ import { STATUS_MAP } from '../utils/config.js';
  * StatusBadge Component
  * Displays a styled badge for application status
  */
-const StatusBadge = ({ status }) => {
+const StatusBadge = React.memo(({ status }) => {
     const { label, class: className } = STATUS_MAP[status] || STATUS_MAP['IN_REVIEW'];
     
     return (
@@ -15,6 +15,8 @@ const StatusBadge = ({ status }) => {
             {label}
         </span>
     );
-};
+});
+
+StatusBadge.displayName = 'StatusBadge';
 
 export default StatusBadge;
