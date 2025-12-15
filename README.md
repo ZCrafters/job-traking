@@ -97,6 +97,7 @@ job-traking/
 
 ### Core Technologies
 - **Frontend Framework**: React 18.2.0
+- **Build Tool**: Vite
 - **Database**: Firebase Firestore
 - **Authentication**: Firebase Auth
 - **AI Integration**: Google Gemini API (for OCR, CV analysis, etc.)
@@ -120,18 +121,60 @@ job-traking/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Modern web browser with ES6 module support
+- Node.js 20.x or higher
+- npm or yarn
 - Firebase project credentials
 - Google Gemini API key
 
-### Setup
+### Installation
 1. Clone the repository
-2. Configure Firebase credentials in the environment
-3. Add Gemini API key to configuration
-4. Open `index.html` in a web server (required for ES6 modules)
+   ```bash
+   git clone https://github.com/ZCrafters/job-traking.git
+   cd job-traking
+   ```
+
+2. Install dependencies
+   ```bash
+   npm install
+   ```
+
+3. Configure Firebase credentials in the environment
+4. Add Gemini API key to configuration
 
 ### Development
-The application uses ES6 modules loaded directly in the browser. No build step required for development.
+Run the development server:
+```bash
+npm run dev
+```
+
+The app will be available at `http://localhost:3000/job-traking/`
+
+### Build for Production
+Build the application:
+```bash
+npm run build
+```
+
+The production build will be created in the `dist/` directory.
+
+Preview the production build:
+```bash
+npm run preview
+```
+
+### Deployment to GitHub Pages
+The application automatically deploys to GitHub Pages when changes are pushed to the `main` branch.
+
+**Setup GitHub Pages:**
+1. Go to your repository Settings → Pages
+2. Under "Build and deployment":
+   - Source: GitHub Actions
+3. Push to `main` branch to trigger deployment
+
+The deployed site will be available at: `https://zcrafters.github.io/job-traking/`
+
+**Manual Deployment:**
+You can also trigger deployment manually from the Actions tab in GitHub.
 
 ## 📊 Data Structure
 

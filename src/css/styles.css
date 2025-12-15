@@ -1,6 +1,10 @@
 /* Custom Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Georgia&family=Garamond&family=Helvetica+Neue&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Font Families */
 .font-helvetica { 
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
