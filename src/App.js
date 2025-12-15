@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
@@ -7,17 +7,10 @@ import {
     getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, getDoc, addDoc, setLogLevel, writeBatch, getDocs, Timestamp
 } from 'firebase/firestore';
 
-// Component Imports
+// Core Component Imports (needed immediately)
 import {
     StatusBadge,
-    SummaryCard,
     StatusDistributionChart,
-    ApplicationCard,
-    ApplicationModal,
-    EmailDraftModal,
-    StrategyModal,
-    CVCheckModal,
-    ProfileAnalysisModal,
     AppShell,
     Sidebar,
     Topbar,
@@ -25,6 +18,13 @@ import {
     ChartCard,
     ApplicationsTable
 } from './components/index.js';
+
+// Lazy load modal components (not needed on initial render)
+const ApplicationModal = lazy(() => import('./components/ApplicationModal.js'));
+const EmailDraftModal = lazy(() => import('./components/EmailDraftModal.js'));
+const StrategyModal = lazy(() => import('./components/StrategyModal.js'));
+const CVCheckModal = lazy(() => import('./components/CVCheckModal.js'));
+const ProfileAnalysisModal = lazy(() => import('./components/ProfileAnalysisModal.js'));
 
 // Utility Imports
 import {
@@ -937,44 +937,46 @@ User profile context: ${sanitizedContext}`;
                 )}
             </div>
 
-            {/* Modals */}
-            <ApplicationModal 
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSave={handleSave}
-                initialData={modalData}
-                isScanning={isScanning}
-                scanStatus={scanStatus}
-                handleImageUpload={handleImageUpload}
-                onGenerateNotes={handleGenerateNotes}
-                isGenerating={isGenerating}
-            />
-            
-            <EmailDraftModal 
-                isOpen={emailDraft.isOpen}
-                onClose={() => setEmailDraft({ isOpen: false, subject: '', body: '' })}
-                draft={emailDraft}
-            />
+            {/* Modals - Lazy loaded with Suspense */}
+            <Suspense fallback={null}>
+                <ApplicationModal 
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSave={handleSave}
+                    initialData={modalData}
+                    isScanning={isScanning}
+                    scanStatus={scanStatus}
+                    handleImageUpload={handleImageUpload}
+                    onGenerateNotes={handleGenerateNotes}
+                    isGenerating={isGenerating}
+                />
+                
+                <EmailDraftModal 
+                    isOpen={emailDraft.isOpen}
+                    onClose={() => setEmailDraft({ isOpen: false, subject: '', body: '' })}
+                    draft={emailDraft}
+                />
 
-            <StrategyModal
-                isOpen={strategyDraft.isOpen}
-                onClose={() => setStrategyDraft({ isOpen: false, questions: [], highlights: [] })}
-                strategy={strategyDraft}
-            />
-            
-            <CVCheckModal
-                isOpen={cvCheck.isOpen}
-                onClose={() => setCvCheck({ isOpen: false, matches: [], improvements: [] })}
-                checks={cvCheck}
-            />
+                <StrategyModal
+                    isOpen={strategyDraft.isOpen}
+                    onClose={() => setStrategyDraft({ isOpen: false, questions: [], highlights: [] })}
+                    strategy={strategyDraft}
+                />
+                
+                <CVCheckModal
+                    isOpen={cvCheck.isOpen}
+                    onClose={() => setCvCheck({ isOpen: false, matches: [], improvements: [] })}
+                    checks={cvCheck}
+                />
 
-            <ProfileAnalysisModal
-                isOpen={isProfileModalOpen}
-                onClose={() => setIsProfileModalOpen(false)}
-                onAnalyze={handleAnalyzeProfile}
-                isAnalyzing={isAnalyzingProfile}
-                currentContext={userProfileContext}
-            />
+                <ProfileAnalysisModal
+                    isOpen={isProfileModalOpen}
+                    onClose={() => setIsProfileModalOpen(false)}
+                    onAnalyze={handleAnalyzeProfile}
+                    isAnalyzing={isAnalyzingProfile}
+                    currentContext={userProfileContext}
+                />
+            </Suspense>
         </AppShell>
     );
 };
