@@ -669,6 +669,15 @@ User profile context: ${sanitizedContext}`;
     const handleImageScanClick = useCallback(() => {
         document.getElementById('imageFile').click();
     }, []);
+    
+    const handleSearchChange = useCallback((value) => {
+        setSearchTerm(value);
+        setCurrentPage(1);
+    }, []);
+    
+    const handleProfileClick = useCallback(() => {
+        setIsProfileModalOpen(true);
+    }, []);
 
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
@@ -781,13 +790,10 @@ User profile context: ${sanitizedContext}`;
             topbar={
                 <Topbar
                     searchTerm={searchTerm}
-                    onSearchChange={(value) => {
-                        setSearchTerm(value);
-                        setCurrentPage(1);
-                    }}
+                    onSearchChange={handleSearchChange}
                     onAddClick={handleAddClick}
                     onScanClick={handleImageScanClick}
-                    onProfileClick={() => setIsProfileModalOpen(true)}
+                    onProfileClick={handleProfileClick}
                     onExport={handleExport}
                     onImport={handleImportClick}
                 />
