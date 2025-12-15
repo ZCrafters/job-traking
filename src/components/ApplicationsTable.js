@@ -14,7 +14,7 @@ const getFirstLineOfNotes = (notes) => {
  * ApplicationsTable Component
  * Compact table view for applications with responsive mobile cards
  */
-const ApplicationsTable = ({ 
+const ApplicationsTable = React.memo(({ 
     applications, 
     onEdit, 
     onDelete, 
@@ -282,6 +282,8 @@ const ApplicationsTable = ({
             </div>
         </div>
     );
-};
+});
+
+ApplicationsTable.displayName = 'ApplicationsTable';
 
 export default ApplicationsTable;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { STATUS_MAP } from '../utils/config.js';
 import { describeArc } from '../utils/chartUtils.js';
 
@@ -6,41 +6,48 @@ import { describeArc } from '../utils/chartUtils.js';
  * StatusDistributionChart Component
  * Displays a pie chart visualization of application status distribution
  */
-const StatusDistributionChart = ({ applications }) => {
-    const counts = applications.reduce((acc, app) => {
-        const statusKey = app.status;
-        acc[statusKey] = (acc[statusKey] || 0) + 1;
-        return acc;
-    }, {});
-    
-    const data = Object.keys(counts).map(status => ({
-        label: STATUS_MAP[status].label,
-        value: counts[status],
-        color: STATUS_MAP[status].color,
-    })).filter(item => item.value > 0);
-
-    const total = applications.length;
-
-    let startAngle = 0;
-    const slices = data.map((item, index) => {
-        const angle = (item.value / total) * 360;
-        const endAngle = startAngle + angle;
-
-        const pathData = describeArc(100, 100, 100, startAngle, endAngle);
-        startAngle = endAngle;
+const StatusDistributionChart = React.memo(({ applications }) => {
+    // Memoize expensive chart calculations
+    const chartData = useMemo(() => {
+        const counts = applications.reduce((acc, app) => {
+            const statusKey = app.status;
+            acc[statusKey] = (acc[statusKey] || 0) + 1;
+            return acc;
+        }, {});
         
-        return (
-            <path 
-                key={item.label}
-                d={pathData}
-                fill={item.color}
-                className="transition-all-smooth hover:opacity-80 cursor-pointer"
-                style={{
-                    animation: `scaleIn 0.5s ease-out ${index * 0.1}s both`
-                }}
-            />
-        );
-    });
+        const data = Object.keys(counts).map(status => ({
+            label: STATUS_MAP[status].label,
+            value: counts[status],
+            color: STATUS_MAP[status].color,
+        })).filter(item => item.value > 0);
+
+        const total = applications.length;
+
+        let startAngle = 0;
+        const slices = data.map((item, index) => {
+            const angle = (item.value / total) * 360;
+            const endAngle = startAngle + angle;
+
+            const pathData = describeArc(100, 100, 100, startAngle, endAngle);
+            startAngle = endAngle;
+            
+            return (
+                <path 
+                    key={item.label}
+                    d={pathData}
+                    fill={item.color}
+                    className="transition-all-smooth hover:opacity-80 cursor-pointer"
+                    style={{
+                        animation: `scaleIn 0.5s ease-out ${index * 0.1}s both`
+                    }}
+                />
+            );
+        });
+        
+        return { data, total, slices };
+    }, [applications]);
+    
+    const { data, total, slices } = chartData;
 
     return (
         <div className="bg-white p-6 rounded-2xl shadow-lg h-full animate-fadeIn">
@@ -83,6 +90,8 @@ const StatusDistributionChart = ({ applications }) => {
             </div>
         </div>
     );
-};
+});
+
+StatusDistributionChart.displayName = 'StatusDistributionChart';
 
 export default StatusDistributionChart;
