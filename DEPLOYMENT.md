@@ -29,7 +29,7 @@ Before deploying, ensure you have:
    - Authentication enabled
    - API keys configured in your application
 4. **Google Gemini API Key** (for AI features):
-   - Obtain from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Obtain from [Google AI Studio](https://aistudio.google.com/app/apikey) or [Google Cloud Console](https://console.cloud.google.com/)
 
 ---
 
@@ -98,13 +98,12 @@ npm run build
 # You can preview it locally before deploying:
 npm run preview
 
-# 4. Deploy using GitHub Pages CLI (optional)
-npx gh-pages -d dist
-```
-
-**Note**: For option 2, you need the `gh-pages` package:
-```bash
+# 4. (Optional) Deploy using GitHub Pages CLI
+# First install the gh-pages package:
 npm install --save-dev gh-pages
+
+# Then deploy:
+npx gh-pages -d dist
 ```
 
 ---
@@ -132,12 +131,14 @@ Keep the current configuration or adjust to match your subdomain structure.
 
 ### Environment Variables
 
+**⚠️ Security Note**: Never hardcode API keys directly in your code for production. Use environment variables or GitHub Secrets instead.
+
 For production deployment with Firebase and Gemini API:
 
 1. **Firebase Configuration**: Update in your `index.html` or configuration file:
    ```javascript
    const firebaseConfig = {
-     apiKey: "YOUR_API_KEY",
+     apiKey: "YOUR_API_KEY",  // ⚠️ Use environment variable in production
      authDomain: "YOUR_PROJECT.firebaseapp.com",
      projectId: "YOUR_PROJECT_ID",
      // ... other config
@@ -146,10 +147,10 @@ For production deployment with Firebase and Gemini API:
 
 2. **Gemini API Key**: Configure in your application:
    ```javascript
-   const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
+   const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";  // ⚠️ Use environment variable in production
    ```
 
-**Security Note**: For production, consider using environment variables or GitHub Secrets instead of hardcoding API keys.
+**Recommended**: Store sensitive keys in GitHub Secrets and inject them during build. See [Advanced Topics](#advanced-topics) for implementation details.
 
 ---
 
@@ -285,9 +286,21 @@ The current setup already implements CD (Continuous Deployment):
 - **Process**: Automated build → test → deploy
 - **Rollback**: Revert commit or redeploy previous version
 
-To disable auto-deployment:
-- Remove the `push` trigger from `.github/workflows/deploy.yml`
-- Keep only `workflow_dispatch` for manual triggers
+To disable auto-deployment (if you prefer manual-only deployments):
+1. Edit `.github/workflows/deploy.yml` (this file exists in your repository)
+2. Remove or comment out the `push:` trigger section:
+   ```yaml
+   on:
+     # Comment out or remove these lines for manual-only deployment:
+     # push:
+     #   branches:
+     #     - main
+     
+     # Keep this for manual triggers:
+     workflow_dispatch:
+   ```
+3. Commit and push the change
+4. After this, deployments will only occur when manually triggered from the Actions tab
 
 ### Monitoring and Analytics
 

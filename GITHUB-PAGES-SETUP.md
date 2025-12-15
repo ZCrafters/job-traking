@@ -332,10 +332,11 @@ For this project (Firebase & Gemini API):
 
 If you encounter issues:
 
-1. Check this guide's troubleshooting section
-2. Review [DEPLOYMENT.md](DEPLOYMENT.md) for detailed solutions
-3. Check [GitHub Pages Status](https://www.githubstatus.com/)
-4. Open an issue in the repository
+1. Check this guide's [Troubleshooting section](#troubleshooting) above
+2. Review [DEPLOYMENT.md](DEPLOYMENT.md) for additional detailed solutions
+3. Try the [Quick Start Guide](DEPLOYMENT-QUICKSTART.md) for common issues
+4. Check [GitHub Pages Status](https://www.githubstatus.com/) for service issues
+5. Open an issue in the repository for persistent problems
 
 ---
 
