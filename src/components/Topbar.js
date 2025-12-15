@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
  * Topbar Component
  * Sticky top navigation with search, actions, and profile
  */
-const Topbar = ({ 
+const Topbar = React.memo(({ 
     searchTerm, 
     onSearchChange, 
     onAddClick, 
@@ -119,6 +119,8 @@ const Topbar = ({
             </div>
         </header>
     );
-};
+});
+
+Topbar.displayName = 'Topbar';
 
 export default Topbar;

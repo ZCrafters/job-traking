@@ -4,7 +4,7 @@ import React from 'react';
  * ChartCard Component
  * Container for charts with title and subtitle
  */
-const ChartCard = ({ title, subtitle, children, actions }) => {
+const ChartCard = React.memo(({ title, subtitle, children, actions }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -25,6 +25,8 @@ const ChartCard = ({ title, subtitle, children, actions }) => {
             </div>
         </div>
     );
-};
+});
+
+ChartCard.displayName = 'ChartCard';
 
 export default ChartCard;

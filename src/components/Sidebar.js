@@ -4,7 +4,7 @@ import React from 'react';
  * Sidebar Component
  * Fixed left sidebar with navigation items
  */
-const Sidebar = ({ activeTab = 'dashboard', onTabChange }) => {
+const Sidebar = React.memo(({ activeTab = 'dashboard', onTabChange }) => {
     const navItems = [
         {
             id: 'dashboard',
@@ -99,6 +99,8 @@ const Sidebar = ({ activeTab = 'dashboard', onTabChange }) => {
             </div>
         </aside>
     );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 export default Sidebar;
