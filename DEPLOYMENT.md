@@ -133,24 +133,60 @@ Keep the current configuration or adjust to match your subdomain structure.
 
 **⚠️ Security Note**: Never hardcode API keys directly in your code for production. Use environment variables or GitHub Secrets instead.
 
-For production deployment with Firebase and Gemini API:
+#### Local Development Setup
 
-1. **Firebase Configuration**: Update in your `index.html` or configuration file:
-   ```javascript
-   const firebaseConfig = {
-     apiKey: "YOUR_API_KEY",  // ⚠️ Use environment variable in production
-     authDomain: "YOUR_PROJECT.firebaseapp.com",
-     projectId: "YOUR_PROJECT_ID",
-     // ... other config
-   };
+1. **Create a `.env` file** in the project root (copy from `.env.example`):
+   ```bash
+   cp .env.example .env
    ```
 
-2. **Gemini API Key**: Configure in your application:
-   ```javascript
-   const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";  // ⚠️ Use environment variable in production
+2. **Configure Firebase** (get these from your Firebase project settings):
+   ```env
+   VITE_FIREBASE_API_KEY=your-api-key-here
+   VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project-id
+   VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+   VITE_FIREBASE_APP_ID=your-app-id
+   VITE_FIREBASE_MEASUREMENT_ID=your-measurement-id
    ```
 
-**Recommended**: Store sensitive keys in GitHub Secrets and inject them during build. See [Advanced Topics](#advanced-topics) for implementation details.
+3. **Configure Gemini API** (get from [Google AI Studio](https://aistudio.google.com/app/apikey)):
+   ```env
+   VITE_GEMINI_API_KEY=your-gemini-api-key-here
+   ```
+
+4. **Optional Configuration**:
+   ```env
+   VITE_APP_ID=default-app-id
+   ```
+
+#### Production Deployment
+
+For GitHub Pages deployment, add your environment variables as **GitHub Secrets**:
+
+1. **Go to your repository** → **Settings** → **Secrets and variables** → **Actions**
+2. Click **"New repository secret"**
+3. Add each of the following secrets with their corresponding values:
+
+   | Secret Name | Description | Example |
+   |-------------|-------------|---------|
+   | `VITE_FIREBASE_API_KEY` | Firebase API Key | `AIzaSyD...` |
+   | `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain | `your-project.firebaseapp.com` |
+   | `VITE_FIREBASE_PROJECT_ID` | Firebase Project ID | `your-project-id` |
+   | `VITE_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket | `your-project.appspot.com` |
+   | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase Sender ID | `123456789` |
+   | `VITE_FIREBASE_APP_ID` | Firebase App ID | `1:123456789:web:abc...` |
+   | `VITE_FIREBASE_MEASUREMENT_ID` | Firebase Measurement ID | `G-ABC123XYZ` |
+   | `VITE_APP_ID` | Application ID | `default-app-id` |
+   | `VITE_GEMINI_API_KEY` | Gemini API Key | `AIzaSyC...` |
+
+4. **Push to main branch** - The workflow (`.github/workflows/deploy.yml`) automatically injects these secrets during build
+
+**Note**: 
+- The application will work without Firebase configuration but database features will be disabled
+- Ensure all required environment variables are set for full functionality
+- GitHub Secrets are encrypted and not exposed in logs or build outputs
 
 ---
 

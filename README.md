@@ -140,8 +140,14 @@ job-traking/
    npm install
    ```
 
-3. Configure Firebase credentials in the environment
-4. Add Gemini API key to configuration
+3. Configure environment variables
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and add your credentials:
+   - Firebase configuration (from Firebase Console)
+   - Gemini API key (from [Google AI Studio](https://aistudio.google.com/app/apikey))
 
 ### Development
 Run the development server:

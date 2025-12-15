@@ -15,17 +15,23 @@ cd job-traking
 npm install
 ```
 
-3. **Open in browser**
-Simply open `index.html` in a modern web browser, or use a local server:
+3. **Configure environment variables** (Required for Firebase and AI features)
 ```bash
-# Using Python
-python -m http.server 8000
-
-# Using Node.js
-npx http-server
+cp .env.example .env
 ```
 
-Visit `http://localhost:8000` in your browser.
+Edit `.env` file with your credentials:
+- Firebase configuration (from Firebase Console)
+- Gemini API key (from [Google AI Studio](https://aistudio.google.com/app/apikey))
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed configuration instructions.
+
+4. **Run development server**
+```bash
+npm run dev
+```
+
+Visit `http://localhost:3000/job-traking/` in your browser.
 
 ---
 

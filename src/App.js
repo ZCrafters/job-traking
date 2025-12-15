@@ -49,9 +49,17 @@ import {
 } from './utils/index.js';
 
 // Global Environment Variables
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const appId = import.meta.env.VITE_APP_ID || 'default-app-id';
+const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ''
+};
+const initialAuthToken = import.meta.env.VITE_INITIAL_AUTH_TOKEN || null;
 
 /**
  * Main App Component
@@ -153,6 +161,22 @@ const App = () => {
     useEffect(() => {
         setLogLevel('error');
 
+        // Check if Firebase configuration is provided (validate required fields)
+        const requiredFields = ['apiKey', 'authDomain', 'projectId'];
+        const missingFields = requiredFields.filter(field => !firebaseConfig[field]);
+        
+        if (missingFields.length > 0) {
+            console.warn(
+                `Firebase configuration is incomplete. Missing: ${missingFields.join(', ')}\n` +
+                "Please set up your environment variables.\n" +
+                "Copy .env.example to .env and add your Firebase credentials.\n" +
+                "See DEPLOYMENT.md for more information."
+            );
+            // Set auth ready to allow app to function without Firebase
+            setIsAuthReady(true);
+            return;
+        }
+
         try {
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
@@ -173,11 +197,14 @@ const App = () => {
                         }
                     } catch (error) {
                         console.error("Initial Authentication Error:", error);
+                        setIsAuthReady(true);
                     }
                 }
             });
         } catch (e) {
             console.error("Firebase Initialization Failed:", e);
+            console.error("Please check your Firebase configuration in .env file");
+            setIsAuthReady(true);
         }
     }, []);
 
