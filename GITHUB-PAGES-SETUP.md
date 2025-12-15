@@ -1,6 +1,6 @@
 # GitHub Pages Setup Guide
 
-This guide walks you through enabling GitHub Pages for your repository with screenshots descriptions.
+This guide walks you through enabling GitHub Pages for your repository with screenshot descriptions.
 
 ## Prerequisites
 
