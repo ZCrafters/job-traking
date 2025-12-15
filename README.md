@@ -2,6 +2,8 @@
 
 A modern, AI-powered job application tracking system with advanced features and animations.
 
+🚀 **[Deployment Guide](DEPLOYMENT.md)** | 🎯 **[Quick Start](QUICK_START.md)** | 📝 **[View Demo](https://zcrafters.github.io/job-traking/)**
+
 ## 🎯 Features
 
 ### Core Functionality
@@ -163,18 +165,15 @@ npm run preview
 ```
 
 ### Deployment to GitHub Pages
-The application automatically deploys to GitHub Pages when changes are pushed to the `main` branch.
 
-**Setup GitHub Pages:**
-1. Go to your repository Settings → Pages
-2. Under "Build and deployment":
-   - Source: GitHub Actions
-3. Push to `main` branch to trigger deployment
+📚 **[See Complete Deployment Guide](DEPLOYMENT.md)** for detailed instructions.
 
-The deployed site will be available at: `https://zcrafters.github.io/job-traking/`
+**Quick Start:**
+1. Enable GitHub Pages: Settings → Pages → Source: GitHub Actions
+2. Push to `main` branch to trigger automatic deployment
+3. Access your deployed site at: `https://zcrafters.github.io/job-traking/`
 
-**Manual Deployment:**
-You can also trigger deployment manually from the Actions tab in GitHub.
+The application automatically deploys via GitHub Actions. You can also trigger deployment manually from the Actions tab.
 
 ## 📊 Data Structure
 
