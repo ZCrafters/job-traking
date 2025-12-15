@@ -161,10 +161,14 @@ const App = () => {
     useEffect(() => {
         setLogLevel('error');
 
-        // Check if Firebase configuration is provided
-        if (!firebaseConfig.projectId) {
+        // Check if Firebase configuration is provided (validate required fields)
+        const requiredFields = ['apiKey', 'authDomain', 'projectId'];
+        const missingFields = requiredFields.filter(field => !firebaseConfig[field]);
+        
+        if (missingFields.length > 0) {
             console.warn(
-                "Firebase configuration is missing. Please set up your environment variables.\n" +
+                `Firebase configuration is incomplete. Missing: ${missingFields.join(', ')}\n` +
+                "Please set up your environment variables.\n" +
                 "Copy .env.example to .env and add your Firebase credentials.\n" +
                 "See DEPLOYMENT.md for more information."
             );
