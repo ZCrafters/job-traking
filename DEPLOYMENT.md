@@ -2,6 +2,11 @@
 
 This guide will help you deploy the Job Application Tracker to GitHub Pages.
 
+📌 **Quick Links:**
+- 🏃 **[3-Step Quick Start](DEPLOYMENT-QUICKSTART.md)** - Deploy in minutes
+- 🖥️ **[GitHub Pages Setup](GITHUB-PAGES-SETUP.md)** - Detailed setup with screenshots descriptions
+- 📚 This guide - Complete reference with troubleshooting
+
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Quick Deploy (Automatic)](#quick-deploy-automatic)
@@ -33,6 +38,8 @@ Before deploying, ensure you have:
 The easiest way to deploy is using GitHub Actions, which is already configured:
 
 ### Step 1: Enable GitHub Pages
+
+📖 **[See Detailed Setup Guide](GITHUB-PAGES-SETUP.md)** with screenshots descriptions
 
 1. Go to your repository on GitHub
 2. Click **Settings** → **Pages** (in the left sidebar)
