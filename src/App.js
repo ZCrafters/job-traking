@@ -638,13 +638,14 @@ User profile context: ${sanitizedContext}`;
             try {
                 await deleteDoc(doc(dbInstance, path, id));
                 showMessage('Application successfully deleted!', 'success');
-                setCurrentPage(prev => Math.min(prev, Math.ceil((applications.length - 1) / ITEMS_PER_PAGE) || 1));
+                // Reset to page 1 after delete to avoid potential empty pages
+                setCurrentPage(1);
             } catch (e) {
                 console.error("Error deleting document: ", e);
                 showMessage('Failed to delete application.', 'error');
             }
         }
-    }, [userId, dbInstance, applications.length, showMessage]);
+    }, [userId, dbInstance, showMessage]);
     
     // --- MODAL CONTROL ---
 
