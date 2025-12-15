@@ -165,14 +165,28 @@ Keep the current configuration or adjust to match your subdomain structure.
 
 For GitHub Pages deployment, add your environment variables as **GitHub Secrets**:
 
-1. Go to your repository → Settings → Secrets and variables → Actions
-2. Click "New repository secret"
-3. Add each environment variable (without the `VITE_` prefix in the secret name if you prefer)
-4. Update `.github/workflows/deploy.yml` to inject these secrets during build
+1. **Go to your repository** → **Settings** → **Secrets and variables** → **Actions**
+2. Click **"New repository secret"**
+3. Add each of the following secrets with their corresponding values:
 
-**Note**: The application will work without Firebase configuration but database features will be disabled. Ensure all required environment variables are set for full functionality.
+   | Secret Name | Description | Example |
+   |-------------|-------------|---------|
+   | `VITE_FIREBASE_API_KEY` | Firebase API Key | `AIzaSyD...` |
+   | `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain | `your-project.firebaseapp.com` |
+   | `VITE_FIREBASE_PROJECT_ID` | Firebase Project ID | `your-project-id` |
+   | `VITE_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket | `your-project.appspot.com` |
+   | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase Sender ID | `123456789` |
+   | `VITE_FIREBASE_APP_ID` | Firebase App ID | `1:123456789:web:abc...` |
+   | `VITE_FIREBASE_MEASUREMENT_ID` | Firebase Measurement ID | `G-ABC123XYZ` |
+   | `VITE_APP_ID` | Application ID | `default-app-id` |
+   | `VITE_GEMINI_API_KEY` | Gemini API Key | `AIzaSyC...` |
 
-**Recommended**: Store sensitive keys in GitHub Secrets and inject them during build. See [Advanced Topics](#advanced-topics) for implementation details.
+4. **Push to main branch** - The workflow (`.github/workflows/deploy.yml`) automatically injects these secrets during build
+
+**Note**: 
+- The application will work without Firebase configuration but database features will be disabled
+- Ensure all required environment variables are set for full functionality
+- GitHub Secrets are encrypted and not exposed in logs or build outputs
 
 ---
 
