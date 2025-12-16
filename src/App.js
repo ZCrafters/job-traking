@@ -761,14 +761,15 @@ User profile context: ${sanitizedContext}`;
                         throw new Error("DeepSeek API key not configured");
                     }
                     
-                    const deepseekPrompt = `Extract job application data from this image. Return ONLY a valid JSON object with this exact structure: {"companyName": "company name or N/A", "jobRole": "job role or N/A", "date": "date in YYYY-MM-DD format or N/A"}. Do not include any other text, explanations, or formatting.`;
+                    // Use consistent prompt structure with Gemini
+                    const deepseekPrompt = "Extract the Company Name, the Job Role/Position, and the Date (Applied Date or Deadline). Return ONLY a valid JSON object with this exact structure: {\"companyName\": \"company name or N/A\", \"jobRole\": \"job role or N/A\", \"date\": \"date in YYYY-MM-DD format or N/A\"}. If the date is in DD/MM/YYYY format, convert it to YYYY-MM-DD. Do not include any other text, explanations, or formatting.";
                     
                     const deepseekPayload = {
                         model: DEEPSEEK_MODEL,
                         messages: [
                             {
                                 role: "system",
-                                content: "You are an expert OCR and data extraction tool. Always respond with valid JSON only, no additional text."
+                                content: "You are an expert OCR and data extraction tool for job applications. Always respond with valid JSON only, no additional text."
                             },
                             {
                                 role: "user",
@@ -801,19 +802,32 @@ User profile context: ${sanitizedContext}`;
                     
                     if (!deepseekContent) throw new Error("DeepSeek response was empty.");
                     
-                    // Parse the JSON from DeepSeek response
-                    const jsonMatch = deepseekContent.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        extractedData = JSON.parse(jsonMatch[0]);
-                    } else {
+                    // Parse the JSON from DeepSeek response more safely
+                    try {
+                        // Try direct parsing first
                         extractedData = JSON.parse(deepseekContent);
+                    } catch (parseError) {
+                        // If direct parsing fails, try to extract JSON object using a more specific pattern
+                        const jsonMatch = deepseekContent.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+                        if (jsonMatch) {
+                            extractedData = JSON.parse(jsonMatch[0]);
+                        } else {
+                            throw new Error("Could not extract valid JSON from DeepSeek response");
+                        }
+                    }
+                    
+                    // Validate the extracted data has expected fields
+                    if (!extractedData || typeof extractedData !== 'object' || !('companyName' in extractedData || 'jobRole' in extractedData)) {
+                        throw new Error("DeepSeek response missing required fields");
                     }
                     
                     aiProvider = 'DeepSeek';
                     
                 } catch (deepseekError) {
                     console.error("DeepSeek API also failed:", deepseekError);
-                    throw new Error("Both AI providers failed. Please try again.");
+                    const geminiMsg = geminiError.message || 'Unknown error';
+                    const deepseekMsg = deepseekError.message || 'Unknown error';
+                    throw new Error(`Both AI providers failed. Gemini: ${geminiMsg}. DeepSeek: ${deepseekMsg}`);
                 }
             }
             
