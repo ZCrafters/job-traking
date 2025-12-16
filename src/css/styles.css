@@ -1,5 +1,4 @@
-/* Custom Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Georgia&family=Garamond&family=Helvetica+Neue&display=swap');
+/* Custom Fonts loaded via <link> in index.html */
 
 @tailwind base;
 @tailwind components;

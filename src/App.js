@@ -42,6 +42,9 @@ import {
     EMAIL_ACTIONS,
     BASE_SKILLS_CONTEXT,
     API_URL,
+    DEEPSEEK_API_URL,
+    DEEPSEEK_API_KEY_VALUE,
+    DEEPSEEK_MODEL,
     OCR_SYSTEM_INSTRUCTION,
     OCR_RESPONSE_SCHEMA,
     initialApplications,
@@ -718,29 +721,104 @@ User profile context: ${sanitizedContext}`;
         
         try {
             const base64ImageData = await fileToBase64(file);
-            const userPrompt = "Extract the Company Name, the Job Role/Position, and the Date (Applied Date or Deadline).";
+            let extractedData = null;
+            let aiProvider = 'Gemini';
+            
+            // Try Gemini first
+            try {
+                const userPrompt = "Extract the Company Name, the Job Role/Position, and the Date (Applied Date or Deadline).";
+                const payload = {
+                    contents: [{
+                        role: "user",
+                        parts: [{ text: userPrompt }, { inlineData: { mimeType: file.type, data: base64ImageData } }]
+                    }],
+                    systemInstruction: OCR_SYSTEM_INSTRUCTION,
+                    generationConfig: { responseMimeType: "application/json", responseSchema: OCR_RESPONSE_SCHEMA }
+                };
 
-            const payload = {
-                contents: [{
-                    role: "user",
-                    parts: [{ text: userPrompt }, { inlineData: { mimeType: file.type, data: base64ImageData } }]
-                }],
-                systemInstruction: OCR_SYSTEM_INSTRUCTION,
-                generationConfig: { responseMimeType: "application/json", responseSchema: OCR_RESPONSE_SCHEMA }
-            };
-
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) throw new Error(`Gemini API failed: ${response.status}`);
+                
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!jsonText) throw new Error("Gemini response was empty.");
+                
+                extractedData = JSON.parse(jsonText)?.[0] || {};
+                
+            } catch (geminiError) {
+                console.warn("Gemini API failed, trying DeepSeek fallback:", geminiError);
+                setScanStatus('Primary AI failed, trying fallback AI...');
+                
+                // Fallback to DeepSeek
+                try {
+                    if (!DEEPSEEK_API_KEY_VALUE) {
+                        throw new Error("DeepSeek API key not configured");
+                    }
+                    
+                    const deepseekPrompt = `Extract job application data from this image. Return ONLY a valid JSON object with this exact structure: {"companyName": "company name or N/A", "jobRole": "job role or N/A", "date": "date in YYYY-MM-DD format or N/A"}. Do not include any other text, explanations, or formatting.`;
+                    
+                    const deepseekPayload = {
+                        model: DEEPSEEK_MODEL,
+                        messages: [
+                            {
+                                role: "system",
+                                content: "You are an expert OCR and data extraction tool. Always respond with valid JSON only, no additional text."
+                            },
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: deepseekPrompt },
+                                    { type: "image_url", image_url: { url: `data:${file.type};base64,${base64ImageData}` } }
+                                ]
+                            }
+                        ],
+                        temperature: 0.1,
+                        max_tokens: 500
+                    };
+                    
+                    const deepseekResponse = await fetch(DEEPSEEK_API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${DEEPSEEK_API_KEY_VALUE}`
+                        },
+                        body: JSON.stringify(deepseekPayload)
+                    });
+                    
+                    if (!deepseekResponse.ok) {
+                        const errorText = await deepseekResponse.text();
+                        throw new Error(`DeepSeek API failed: ${deepseekResponse.status} - ${errorText}`);
+                    }
+                    
+                    const deepseekResult = await deepseekResponse.json();
+                    const deepseekContent = deepseekResult.choices?.[0]?.message?.content;
+                    
+                    if (!deepseekContent) throw new Error("DeepSeek response was empty.");
+                    
+                    // Parse the JSON from DeepSeek response
+                    const jsonMatch = deepseekContent.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        extractedData = JSON.parse(jsonMatch[0]);
+                    } else {
+                        extractedData = JSON.parse(deepseekContent);
+                    }
+                    
+                    aiProvider = 'DeepSeek';
+                    
+                } catch (deepseekError) {
+                    console.error("DeepSeek API also failed:", deepseekError);
+                    throw new Error("Both AI providers failed. Please try again.");
+                }
+            }
             
-            const result = await response.json();
-            const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!jsonText) throw new Error("AI response was empty.");
-            
-            const extractedData = JSON.parse(jsonText)?.[0] || {};
+            // Process extracted data
+            if (!extractedData) throw new Error("No data could be extracted from the image.");
             
             const newRole = extractedData.jobRole !== 'N/A' ? extractedData.jobRole : '';
             const newCompany = extractedData.companyName !== 'N/A' ? extractedData.companyName : '';
@@ -753,14 +831,14 @@ User profile context: ${sanitizedContext}`;
                 appliedDate: newDate,
                 notes: newDate !== extractedData.date ? `Extracted Date was invalid ('${extractedData.date}'). Set to today's date.` : (prev.notes || ''),
                 status: 'IN_REVIEW', 
-                source: 'Image Scan',
+                source: `Image Scan (${aiProvider})`,
             }));
             
-            setScanStatus('Data extracted and populated successfully! Review details before saving.');
+            setScanStatus(`Data extracted successfully using ${aiProvider}! Review details before saving.`);
 
         } catch (error) {
             console.error("Image Scan Error:", error);
-            setScanStatus('An error occurred during scanning. Check console.');
+            setScanStatus(`Error: ${error.message || 'An error occurred during scanning. Check console.'}`);
         } finally {
             setIsScanning(false);
             e.target.value = null;

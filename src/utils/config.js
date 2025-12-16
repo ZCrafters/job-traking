@@ -34,7 +34,11 @@ export const BASE_SKILLS_CONTEXT = `Zefanya's key skills include: Digital Busine
 
 // API Configuration
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || '';
 export const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
+export const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
+export const DEEPSEEK_API_KEY_VALUE = DEEPSEEK_API_KEY;
+export const DEEPSEEK_MODEL = 'deepseek-chat';
 
 // OCR System Instruction
 export const OCR_SYSTEM_INSTRUCTION = { 
