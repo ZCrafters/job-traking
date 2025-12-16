@@ -861,6 +861,26 @@ User profile context: ${sanitizedContext}`;
 
     // --- UI Calculations (Memoized for Performance) ---
 
+    // Tab configuration
+    const tabConfig = useMemo(() => ({
+        dashboard: {
+            title: 'Dashboard',
+            subtitle: 'Track and manage your job applications'
+        },
+        applications: {
+            title: 'Applications',
+            subtitle: 'View and manage all your job applications'
+        },
+        analytics: {
+            title: 'Analytics',
+            subtitle: 'Analyze your application performance'
+        },
+        settings: {
+            title: 'Settings',
+            subtitle: 'Configure your preferences'
+        }
+    }), []);
+
     // Calculate KPIs and status counts - only recalculate when applications change
     const kpis = useMemo(() => {
         const kpiData = calculateKPIs(applications);
@@ -869,6 +889,56 @@ User profile context: ${sanitizedContext}`;
     }, [applications]);
     
     const { successRate, totalActive, timeSinceLastAction, totalOffers, interviewCount } = kpis;
+
+    // Memoized KPI Cards JSX
+    const kpiCards = useMemo(() => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                }
+                label="Total Applications"
+                value={applications.length}
+                helperText="All tracked applications"
+                colorClass="text-indigo-600"
+            />
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                }
+                label="Active Pipeline"
+                value={totalActive}
+                helperText="In Review, Submitted, Interview"
+                colorClass="text-blue-600"
+            />
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                }
+                label="Interviews"
+                value={interviewCount}
+                helperText="Scheduled or completed"
+                colorClass="text-purple-600"
+            />
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                }
+                label="Offers"
+                value={totalOffers}
+                helperText={`Success rate: ${successRate}`}
+                colorClass="text-green-600"
+            />
+        </div>
+    ), [applications.length, totalActive, interviewCount, totalOffers, successRate]);
 
     // --- Pagination Logic (Memoized) ---
     const filteredApps = useMemo(() => {
@@ -923,59 +993,21 @@ User profile context: ${sanitizedContext}`;
             <input type="file" id="imageFile" accept="image/*" className="hidden" onChange={handleImageUpload} />
             <input type="file" id="importFile" accept=".csv" className="hidden" onChange={handleImport} />
 
-            {/* Page Title */}
+            {/* Page Title - Dynamic based on active tab */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-600 mt-1">Track and manage your job applications</p>
+                <h1 className="text-3xl font-bold text-gray-900">
+                    {tabConfig[activeTab]?.title || 'Dashboard'}
+                </h1>
+                <p className="text-gray-600 mt-1">
+                    {tabConfig[activeTab]?.subtitle || 'Track and manage your job applications'}
+                </p>
             </div>
 
-            {/* KPI Cards Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    }
-                    label="Total Applications"
-                    value={applications.length}
-                    helperText="All tracked applications"
-                    colorClass="text-indigo-600"
-                />
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    }
-                    label="Active Pipeline"
-                    value={totalActive}
-                    helperText="In Review, Submitted, Interview"
-                    colorClass="text-blue-600"
-                />
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                    }
-                    label="Interviews"
-                    value={interviewCount}
-                    helperText="Scheduled or completed"
-                    colorClass="text-purple-600"
-                />
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    }
-                    label="Offers"
-                    value={totalOffers}
-                    helperText={`Success rate: ${successRate}`}
-                    colorClass="text-green-600"
-                />
-            </div>
+            {/* Dashboard View */}
+            {activeTab === 'dashboard' && (
+                <>
+                    {/* KPI Cards Row */}
+                    {kpiCards}
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -1062,6 +1094,223 @@ User profile context: ${sanitizedContext}`;
                     </div>
                 )}
             </div>
+                </>
+            )}
+
+            {/* Applications View */}
+            {activeTab === 'applications' && (
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <p className="text-sm text-gray-600 mt-1">
+                                {filteredApps.length} {filteredApps.length === 1 ? 'result' : 'results'}
+                                {searchTerm && ` for "${searchTerm}"`}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Applications Table */}
+                    <ApplicationsTable
+                        applications={appsToRender}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onGenerateEmail={handleGenerateEmail}
+                        onGenerateStrategy={handleGenerateStrategy}
+                        onCVCheck={handleCVCheck}
+                        isEmailLoading={isEmailLoading}
+                        isStrategyLoading={isStrategyLoading}
+                        isCVCheckLoading={isCVCheckLoading}
+                    />
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 px-6 py-4 bg-white rounded-xl shadow-sm border border-gray-100">
+                            <div className="text-sm text-gray-600">
+                                Showing {startIndex + 1}-{Math.min(endIndex, filteredApps.length)} of {filteredApps.length} results
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                    aria-label="Previous page"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-sm text-gray-600">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                    aria-label="Next page"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Analytics View */}
+            {activeTab === 'analytics' && (
+                <>
+                    {/* KPI Cards Row */}
+                    {kpiCards}
+
+                    {/* Charts Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <ChartCard 
+                            title="Status Distribution" 
+                            subtitle="Overview of application statuses"
+                        >
+                            <StatusDistributionChart applications={applications} />
+                        </ChartCard>
+                        
+                        <ChartCard 
+                            title="Application Timeline" 
+                            subtitle="Applications over time"
+                        >
+                            <div className="space-y-3">
+                                {applications.slice(0, 8).map((app) => (
+                                    <div key={app.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{app.role}</p>
+                                            <p className="text-xs text-gray-500">{app.company}</p>
+                                        </div>
+                                        <StatusBadge status={app.status} />
+                                    </div>
+                                ))}
+                                {applications.length === 0 && (
+                                    <p className="text-sm text-gray-500 text-center py-4">No applications yet</p>
+                                )}
+                            </div>
+                        </ChartCard>
+                    </div>
+
+                    {/* Additional Analytics */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <ChartCard 
+                            title="Response Rate" 
+                            subtitle="Applications with responses"
+                        >
+                            <div className="flex items-center justify-center h-32">
+                                <div className="text-center">
+                                    <p className="text-4xl font-bold text-indigo-600">{successRate}</p>
+                                    <p className="text-sm text-gray-600 mt-2">Success Rate</p>
+                                </div>
+                            </div>
+                        </ChartCard>
+
+                        <ChartCard 
+                            title="Average Response Time" 
+                            subtitle="Time to hear back"
+                        >
+                            <div className="flex items-center justify-center h-32">
+                                <div className="text-center">
+                                    <p className="text-4xl font-bold text-blue-600">{timeSinceLastAction}</p>
+                                    <p className="text-sm text-gray-600 mt-2">Last Update</p>
+                                </div>
+                            </div>
+                        </ChartCard>
+
+                        <ChartCard 
+                            title="Active Applications" 
+                            subtitle="Currently in progress"
+                        >
+                            <div className="flex items-center justify-center h-32">
+                                <div className="text-center">
+                                    <p className="text-4xl font-bold text-green-600">{totalActive}</p>
+                                    <p className="text-sm text-gray-600 mt-2">Active</p>
+                                </div>
+                            </div>
+                        </ChartCard>
+                    </div>
+                </>
+            )}
+
+            {/* Settings View */}
+            {activeTab === 'settings' && (
+                <div className="max-w-4xl">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Settings</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Applicant Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={APPLICANT_NAME}
+                                    disabled
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    This is configured in your environment settings
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Profile Context
+                                </label>
+                                <textarea
+                                    value={userProfileContext}
+                                    disabled
+                                    rows="4"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Click "Analyze Profile" in the top bar to update your context
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Data Management</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-sm font-medium text-gray-700 mb-2">Export Data</h3>
+                                <p className="text-sm text-gray-600 mb-3">
+                                    Export all your application data as a CSV file
+                                </p>
+                                <button
+                                    onClick={handleExport}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                >
+                                    Export to CSV
+                                </button>
+                            </div>
+                            <div className="pt-4 border-t border-gray-200">
+                                <h3 className="text-sm font-medium text-gray-700 mb-2">Import Data</h3>
+                                <p className="text-sm text-gray-600 mb-3">
+                                    Import application data from a CSV file
+                                </p>
+                                <button
+                                    onClick={handleImportClick}
+                                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500"
+                                >
+                                    Import from CSV
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">About</h2>
+                        <div className="space-y-2 text-sm text-gray-600">
+                            <p><strong>Application:</strong> Job Application Tracker</p>
+                            <p><strong>Version:</strong> 2.0</p>
+                            <p><strong>Total Applications:</strong> {applications.length}</p>
+                            <p className="pt-4 border-t border-gray-200 mt-4">
+                                This application helps you track and manage your job applications with AI-powered features.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modals - Lazy loaded with Suspense */}
             <Suspense fallback={null}>
