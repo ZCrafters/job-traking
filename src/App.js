@@ -861,6 +861,26 @@ User profile context: ${sanitizedContext}`;
 
     // --- UI Calculations (Memoized for Performance) ---
 
+    // Tab configuration
+    const tabConfig = useMemo(() => ({
+        dashboard: {
+            title: 'Dashboard',
+            subtitle: 'Track and manage your job applications'
+        },
+        applications: {
+            title: 'Applications',
+            subtitle: 'View and manage all your job applications'
+        },
+        analytics: {
+            title: 'Analytics',
+            subtitle: 'Analyze your application performance'
+        },
+        settings: {
+            title: 'Settings',
+            subtitle: 'Configure your preferences'
+        }
+    }), []);
+
     // Calculate KPIs and status counts - only recalculate when applications change
     const kpis = useMemo(() => {
         const kpiData = calculateKPIs(applications);
@@ -869,6 +889,56 @@ User profile context: ${sanitizedContext}`;
     }, [applications]);
     
     const { successRate, totalActive, timeSinceLastAction, totalOffers, interviewCount } = kpis;
+
+    // Reusable KPI Cards component
+    const KPICards = useCallback(() => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                }
+                label="Total Applications"
+                value={applications.length}
+                helperText="All tracked applications"
+                colorClass="text-indigo-600"
+            />
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                }
+                label="Active Pipeline"
+                value={totalActive}
+                helperText="In Review, Submitted, Interview"
+                colorClass="text-blue-600"
+            />
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                }
+                label="Interviews"
+                value={interviewCount}
+                helperText="Scheduled or completed"
+                colorClass="text-purple-600"
+            />
+            <StatCard
+                icon={
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                }
+                label="Offers"
+                value={totalOffers}
+                helperText={`Success rate: ${successRate}`}
+                colorClass="text-green-600"
+            />
+        </div>
+    ), [applications.length, totalActive, interviewCount, totalOffers, successRate]);
 
     // --- Pagination Logic (Memoized) ---
     const filteredApps = useMemo(() => {
@@ -926,16 +996,10 @@ User profile context: ${sanitizedContext}`;
             {/* Page Title - Dynamic based on active tab */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">
-                    {activeTab === 'dashboard' && 'Dashboard'}
-                    {activeTab === 'applications' && 'Applications'}
-                    {activeTab === 'analytics' && 'Analytics'}
-                    {activeTab === 'settings' && 'Settings'}
+                    {tabConfig[activeTab]?.title || 'Dashboard'}
                 </h1>
                 <p className="text-gray-600 mt-1">
-                    {activeTab === 'dashboard' && 'Track and manage your job applications'}
-                    {activeTab === 'applications' && 'View and manage all your job applications'}
-                    {activeTab === 'analytics' && 'Analyze your application performance'}
-                    {activeTab === 'settings' && 'Configure your preferences'}
+                    {tabConfig[activeTab]?.subtitle || 'Track and manage your job applications'}
                 </p>
             </div>
 
@@ -943,52 +1007,7 @@ User profile context: ${sanitizedContext}`;
             {activeTab === 'dashboard' && (
                 <>
                     {/* KPI Cards Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    }
-                    label="Total Applications"
-                    value={applications.length}
-                    helperText="All tracked applications"
-                    colorClass="text-indigo-600"
-                />
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    }
-                    label="Active Pipeline"
-                    value={totalActive}
-                    helperText="In Review, Submitted, Interview"
-                    colorClass="text-blue-600"
-                />
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                    }
-                    label="Interviews"
-                    value={interviewCount}
-                    helperText="Scheduled or completed"
-                    colorClass="text-purple-600"
-                />
-                <StatCard
-                    icon={
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    }
-                    label="Offers"
-                    value={totalOffers}
-                    helperText={`Success rate: ${successRate}`}
-                    colorClass="text-green-600"
-                />
-            </div>
+                    <KPICards />
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -1139,52 +1158,7 @@ User profile context: ${sanitizedContext}`;
             {activeTab === 'analytics' && (
                 <>
                     {/* KPI Cards Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <StatCard
-                            icon={
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            }
-                            label="Total Applications"
-                            value={applications.length}
-                            helperText="All tracked applications"
-                            colorClass="text-indigo-600"
-                        />
-                        <StatCard
-                            icon={
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            }
-                            label="Active Pipeline"
-                            value={totalActive}
-                            helperText="In Review, Submitted, Interview"
-                            colorClass="text-blue-600"
-                        />
-                        <StatCard
-                            icon={
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                            }
-                            label="Interviews"
-                            value={interviewCount}
-                            helperText="Scheduled or completed"
-                            colorClass="text-purple-600"
-                        />
-                        <StatCard
-                            icon={
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            }
-                            label="Offers"
-                            value={totalOffers}
-                            helperText={`Success rate: ${successRate}`}
-                            colorClass="text-green-600"
-                        />
-                    </div>
+                    <KPICards />
 
                     {/* Charts Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
