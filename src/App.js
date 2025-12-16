@@ -890,8 +890,8 @@ User profile context: ${sanitizedContext}`;
     
     const { successRate, totalActive, timeSinceLastAction, totalOffers, interviewCount } = kpis;
 
-    // Reusable KPI Cards component
-    const KPICards = useCallback(() => (
+    // Memoized KPI Cards JSX
+    const kpiCards = useMemo(() => (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
                 icon={
@@ -1007,7 +1007,7 @@ User profile context: ${sanitizedContext}`;
             {activeTab === 'dashboard' && (
                 <>
                     {/* KPI Cards Row */}
-                    <KPICards />
+                    {kpiCards}
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -1158,7 +1158,7 @@ User profile context: ${sanitizedContext}`;
             {activeTab === 'analytics' && (
                 <>
                     {/* KPI Cards Row */}
-                    <KPICards />
+                    {kpiCards}
 
                     {/* Charts Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
