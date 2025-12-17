@@ -1,8 +1,24 @@
 # 🚀 Deployment Quick Start
 
-Get your Job Application Tracker live in 3 simple steps!
+Get your Job Application Tracker live in 4 simple steps!
 
-## Step 1: Enable GitHub Pages (One-time setup)
+## Step 1: Configure API Keys (One-time setup)
+
+**Required for AI Features**: Add your Gemini API key to GitHub Secrets.
+
+🔑 **[Follow this 2-minute guide](GITHUB_SECRETS_SETUP.md)** to add the API key.
+
+Quick summary:
+1. Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Go to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `VITE_GEMINI_API_KEY`
+5. Secret: Paste your API key
+6. Click **Add secret**
+
+✅ API key configured!
+
+## Step 2: Enable GitHub Pages (One-time setup)
 
 1. Go to your repository: `https://github.com/ZCrafters/job-traking`
 2. Click **Settings** (top right)
@@ -13,7 +29,7 @@ Get your Job Application Tracker live in 3 simple steps!
 
 ✅ Done! GitHub Pages is now enabled.
 
-## Step 2: Push Your Code
+## Step 3: Push Your Code
 
 ```bash
 # Commit any changes you have
@@ -26,7 +42,7 @@ git push origin main
 
 ✅ Deployment will start automatically!
 
-## Step 3: Wait & Access
+## Step 4: Wait & Access
 
 1. Go to **Actions** tab in your repository
 2. Watch the "Deploy to GitHub Pages" workflow
