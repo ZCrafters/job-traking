@@ -2,7 +2,7 @@
 
 A modern, AI-powered job application tracking system with advanced features and animations.
 
-🚀 **[Deploy in 3 Steps](DEPLOYMENT-QUICKSTART.md)** | 📚 **[Full Deployment Guide](DEPLOYMENT.md)** | 🔑 **[API Setup Guide](API_SETUP.md)** | 🎯 **[Quick Start](QUICK_START.md)** | 📝 **[View Demo](https://zcrafters.github.io/job-traking/)**
+🚀 **[Deploy in 4 Steps](DEPLOYMENT-QUICKSTART.md)** | 📚 **[Full Deployment Guide](DEPLOYMENT.md)** | 🔑 **[API Setup Guide](API_SETUP.md)** | 🎯 **[Quick Start](QUICK_START.md)** | 📝 **[View Demo](https://zcrafters.github.io/job-traking/)**
 
 ## 🎯 Features
 
