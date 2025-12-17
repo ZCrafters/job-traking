@@ -2,7 +2,7 @@
 
 A modern, AI-powered job application tracking system with advanced features and animations.
 
-🚀 **[Deploy in 3 Steps](DEPLOYMENT-QUICKSTART.md)** | 📚 **[Full Deployment Guide](DEPLOYMENT.md)** | 🎯 **[Quick Start](QUICK_START.md)** | 📝 **[View Demo](https://zcrafters.github.io/job-traking/)**
+🚀 **[Deploy in 3 Steps](DEPLOYMENT-QUICKSTART.md)** | 📚 **[Full Deployment Guide](DEPLOYMENT.md)** | 🔑 **[API Setup Guide](API_SETUP.md)** | 🎯 **[Quick Start](QUICK_START.md)** | 📝 **[View Demo](https://zcrafters.github.io/job-traking/)**
 
 ## 🎯 Features
 
@@ -128,6 +128,8 @@ job-traking/
 - Firebase project credentials
 - Google Gemini API key
 
+📖 **See [API Setup Guide](API_SETUP.md) for detailed instructions on obtaining and configuring API keys.**
+
 ### Installation
 1. Clone the repository
    ```bash
@@ -148,6 +150,8 @@ job-traking/
    Edit `.env` and add your credentials:
    - Firebase configuration (from Firebase Console)
    - Gemini API key (from [Google AI Studio](https://aistudio.google.com/app/apikey))
+   
+   📖 **For detailed API setup instructions, see [API_SETUP.md](API_SETUP.md)**
 
 ### Development
 Run the development server:
