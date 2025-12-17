@@ -9,11 +9,12 @@ Get your Job Application Tracker live in 4 simple steps!
 🔑 **[Follow this 2-minute guide](GITHUB_SECRETS_SETUP.md)** to add the API key.
 
 Quick summary:
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Name: `VITE_GEMINI_API_KEY`
-4. Secret: `AIzaSyD7LEdqnb0Wcg-ah5omXsY0TyuzfYo5mpQ`
-5. Click **Add secret**
+1. Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Go to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `VITE_GEMINI_API_KEY`
+5. Secret: Paste your API key
+6. Click **Add secret**
 
 ✅ API key configured!
 

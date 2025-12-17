@@ -50,7 +50,7 @@ Open the `.env` file and add your API keys:
 
 ```bash
 # Google Gemini API Key (for AI features)
-VITE_GEMINI_API_KEY=AIzaSyD7LEdqnb0Wcg-ah5omXsY0TyuzfYo5mpQ
+VITE_GEMINI_API_KEY=your-gemini-api-key-here
 
 # DeepSeek API Key (optional fallback)
 VITE_DEEPSEEK_API_KEY=your-deepseek-api-key-here
@@ -98,7 +98,7 @@ Add each of the following secrets one by one:
 | Field | Value |
 |-------|-------|
 | **Name** | `VITE_GEMINI_API_KEY` |
-| **Secret** | `AIzaSyD7LEdqnb0Wcg-ah5omXsY0TyuzfYo5mpQ` |
+| **Secret** | Your Gemini API key (starts with `AIzaSy...`) |
 
 Click "Add secret" and repeat for the remaining secrets:
 

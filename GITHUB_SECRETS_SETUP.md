@@ -4,7 +4,7 @@ This is a quick reference guide for adding the Gemini API key to your GitHub rep
 
 ## What You Need
 
-- **Gemini API Key**: `AIzaSyD7LEdqnb0Wcg-ah5omXsY0TyuzfYo5mpQ`
+- **Gemini API Key**: Get yours from [Google AI Studio](https://aistudio.google.com/app/apikey)
 - Repository admin access
 - 5 minutes of your time
 
@@ -21,7 +21,7 @@ This is a quick reference guide for adding the Gemini API key to your GitHub rep
 1. Click the green **New repository secret** button
 2. Fill in the form:
    - **Name**: `VITE_GEMINI_API_KEY`
-   - **Secret**: `AIzaSyD7LEdqnb0Wcg-ah5omXsY0TyuzfYo5mpQ`
+   - **Secret**: Paste your Gemini API key here (starts with `AIzaSy...`)
 3. Click **Add secret**
 
 ### Step 3: Verify the Secret Was Added
